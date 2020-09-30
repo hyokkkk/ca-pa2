@@ -53,7 +53,7 @@ float fp12_float(fp12 x);           // convert fp12 -> float
 
 ### int_fp12() (20 points)
 
-- Not all the `int`-type values can be represented in the `fp12` format because `fp12` has only five bits of fraction and a limited range. When necessary, you should use the round-to-even rounding mode.
+- Because `fp12` has only five bits of fraction, you should use the round-to-even rounding mode when necessary.
 - The value 0 in `int` should be converted to the plus zero (+0.0) in `fp12`.
 - Any `int`-type value that exceeds the range of the `fp12` representation (after rounding) should be converted to the infinity in `fp12` (+∞ or -∞ depending on the sign).
 
