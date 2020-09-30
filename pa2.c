@@ -23,7 +23,8 @@
 /********* How to normalize *********/
 
 // 0. MSB로 sign 받아놓음.
-//      1) 양수면 1로 넘어감
+//      0) 입력이 signed int n으로 들어오니까 그냥 n<0 만 판단하면 된다.
+//      1) 양수면 1.로 넘어감
 //      2) 음수면 2's complement 해서 양수로 만든다.
 // 1. 1이 나올 때까지 어떤 연산을 한다. (아마 어떤 bit 연산)
 //      1) 32bit 중에서 n번째에 1이 나왔다고 치면, 32-n이 E가 된다.
@@ -51,10 +52,50 @@
 /* Convert 32-bit signed integer to 12-bit floating point */
 fp12 int_fp12(int n)
 {
+    // n == 0 일 때 처리
+    if (n == 0) return 0;
+
+    //
+    // 0. sign 받아놓기
+    //
+    unsigned short int sign = n < 0 ? 0xf800 : 0; // -: 1111 1000 0000 0000, 0 & +: 00000000 00000000
+    unsigned int un= n < 0 ? (unsigned int) ~n+1 : n; //음수면 양수로 바꿈. -2147483648같은 경계값은 -붙여도 자기 자신임. 
+
+    //TODO : 이렇게 쓰면 MSB를 그냥 숫자로 읽어서 -101이 101이 되는 게 아니라 엄청 큰 수로 인식됨.
+    //unsigned int un =(unsigned int)n ;
+
+
+    //
+    // 1. E를 구하라
+    //
+
+    //TODO : delete
+    printf("n : %d, un : %u, 맨앞1: %u\n", n, un, (unsigned int) 0x80000000);
+
+
+    int cnt = 1;
+    
+    while (un < (unsigned int)0x80000000){
+        un<<=1; cnt++;
+    } // 여기까지 했으면 un의 MSB == 1 이다.
+    
+    int e = 32 - cnt;
+
+    //TODO : delete
+    printf("e : %d\n", e);
+
+    //
+    // 2. rounding
+    //
+
+    unsigned short int exp = e + BIAS;
+    exp <<= 5;
+
     fp12 result = 0; // 결과 저장할 fp12형 16bit를 0으로 초기화
 
+    result |= sign|exp; // 애초에 16bit로 extend하면 1byte로 선언해놓고 result에 넣을 때 shift 연산 안 해도 돼서 이렇게 함.
 
-	return result;
+    return result;
 }
 
 /* Convert 12-bit floating point to 32-bit signed integer */
