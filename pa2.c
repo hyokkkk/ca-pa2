@@ -20,7 +20,7 @@
 typedef enum {false, true} bool; //#include <stdbool.h> 해야하지만 여기선 사용불가하므로.
 
 //TODO : delete
-#include <stdio.h>
+//#include <stdio.h>
 
 /********* How to normalize *********/
 
@@ -53,7 +53,7 @@ typedef enum {false, true} bool; //#include <stdbool.h> 해야하지만 여기�
 
 
 
-/* Convert 32-bit signed integer to 12-bit floating point */
+/*------------- Convert 32-bit signed integer to 12-bit floating point ---------------*/
 fp12 int_fp12(int n)
 {
 
@@ -75,100 +75,180 @@ fp12 int_fp12(int n)
 //
 
     //TODO : delete
-    printf("n : %d, un : %u, 맨앞1: %u\n", n, un, (unsigned int) 0x80000000);
+ //   printf("n : %d, un : %u, 맨앞1: %u\n", n, un, 0x80000000);
 
-
-    int cnt = 1;
+    int cnt = 0;
     
     // un의 MSB == 1일 때까지 shift
-    while (un < (unsigned int)0x80000000){
-        un<<=1; cnt++;
-    } 
-
-    int e = 32 - cnt;
+    while (un < (unsigned int)0x80000000){ un<<=1; cnt++; } 
+    
+    int e = 31 - cnt;
 
     //TODO : delete
-    printf("e : %d\n", e);
+//    printf("정규: %x ", un);
 
 
 //
-// 2. Rounding : LRS = 011, 111, 110 일 때만 +1하고 나머지는 truncate한다.
+// 2. Rounding : LRS = 011, 111, 110 일 때만 +1하고 나머지는 truncate한다. (2점)
 //
-    //
-    // 2-1) RS == 11 check
-    //
-    unsigned int rs = 0xffffffff >> 6; // int 1bit + frac 5 bit -> 00000LR111111111...
+    // 1) RS == 11 check
+    unsigned int rs = 0xffffffff; // int 1bit + frac 5 bit -> 11111L|R111111111...
+    // RS == 11이려면, R==1, S이하에는 하나의 1만 있으면 됨.
+    // rs & un 한 게 Ixxxxx10 00000000 00000000 00000001 이상이면 s==1 이라는 의미다. 
+    // --> (rs & un) << 6 한 게 10000000 00000000 00000000 01000000 이상이면 됨.
+    bool RS = (rs & un) <<6 >= 0x80000040 ? true : false;
     
-    // rs & un 한 게 >= 00000010 00000000 00000000 00000001 이면 s==1 이라는 의미다. 
-    bool RS = (rs & un) > 0x02000000 ? true : false;
+    //TODO : delete
+  //  printf("RS: %d ", RS);
 
-
-    //
-    // 2-2) LR == 11 check
-    //
-    unsigned int lr = 0xffffffff >> 5; // int 1bit + frac 5bit 중 LSB니까 5bit shift -> 00000111.....
+    // 2) LR == 11 check
+    unsigned int lr = 0xffffffff; // int 1bit + frac 5bit 중 LSB니까 5bit shift
+    // lr & un 한 게 Ixxxx11x xxxxxx이면 s에 상관 없이 LR == 11임.
+    // --> (lr & un) << 5 한 게 11000000 00000000 0~ 0~ 이상이면 됨.
+    bool LR = (lr & un) << 5 >= 0xc0000000 ? true : false;
     
-    // lr & un >= 000001100 00000000 00000000 00000000 이면 s에 상관 없이 LR == 11임.
-    bool LR = (lr & un) >= 0x0c000000 ? true : false;
+    //TODO : delete
+    //printf("LR: %d ", LR);
 
-
-    //
-    // 2-3) truncate 후 LRS 조건에 맞는 것만 +1
-    //
+    // 3) truncate 후 LRS 조건에 맞는 것만 +1
     un >>= 32-6; // int 1bit + frac 5bit = 6bit만 남게 shift 
     if (RS || LR) un += 1; 
 
 
-//
-// 3. Renormalization
+// 3. Renormalization 
 // -> 정상이라면 1xxxxx처럼 6bit 숫자임. but 10.00000처럼 7bit로 넘어가는 경우도 있다.
 // -> 01000000 이상이면 >>1 하고 e += 1;
-//
     
+    //TODO : delete
+    //printf("un: %x ", un);
+
     if (un >= 0x40) {
         un >>= 1;
         e += 1;
     }
+    
+    //TODO : delete
+    //printf("e: %d ", e);
+
+// TODO: 2점이 깎이는데 여기가 문제가 아닌가... 이 문단은 없어도 점수 동일함.
+// 3-1. special case
+// -> 라운딩 후 fp12로 나타낼 수 있는 범위를 넘어가는 int는 부호에 따라 +INF, -INF 로 나타냄
+
+    // fp12 Max = 00000 111110 11111 = 1.11111 * 2^31
+    // +INF = 00000 111111 00000 = 0x07e0;
+    // -INF = 11111 111111 00000 = 0xffe0;
+    if (e == 32){
+       if (sign == 0xf800) return 0xffe0;
+       else if (sign == 0) return 0x07e0;
+    }
 
 
-//
+
+
 // 4. Encoding
 // -> sign, exp, frac을 애초에 16bit로 extend해서 선언해놓고 result에 넣을 때 shift 없이 OR만 한다.
-// 
-    
-    // 4-1) sign은 위에서 구해놓음
-    
-    // 4-2) exp : 6bit 니까 <<5.
+ 
+    // 1) sign은 위에서 구해놓음
+
+    // 2) exp : 6bit 니까 <<5.
     unsigned short int exp = e + BIAS;
     exp <<= 5;
 
-    // 4-3) frac만 남기기 : << 32-5 한 후에 ORing 위해 다시 >>32-5
+    // 3) frac만 남기기 : << 32-5 한 후에 ORing 위해 다시 >>32-5
     un <<= 32-5;
     un >>= 32-5;
     
-
+    // 4) result에 넣기
     fp12 result = 0; // 결과 저장할 fp12형 16bit를 0으로 초기화
-
     result |= sign | exp | un; // 애초에 16bit로 extend하면 1byte로 선언해놓고 result에 넣을 때 shift 연산 안 해도 돼서 이렇게 함.
 
     return result;
 }
 
-/* Convert 12-bit floating point to 32-bit signed integer */
+
+
+/*--------------- Convert 12-bit floating point to 32-bit signed integer ------------------*/
+
+
 int fp12_int(fp12 x)
 {
-	/* TODO */
-	return 1;
+
+//
+// 0. exp = 000000, 111111 처리하기
+//
+    fp12 exp = x << 5; // remove sign
+    exp >>= 10; // remove frac
+
+    // 1) exp = 000000 : +0, -0, denormalized form 은 다 0으로 처리
+    if (exp == 0) return 0;
+
+    // 2) exp = 111111 은 -inf, +inf, +Nan, -Nan 이다.
+    if (exp == 0x3f) return 0x80000000;
+
+//
+// 1. encoding
+//
+    // 1) sign  
+    // -> input x >= 11111000~~~ 이라면 sign은 1, 작으면 걍 0.
+    int sign = x >= 0xf800 ? 1 : 0; // 여기가 문제였어!!!! 갹~~~~ (3점) 
+
+    // 2) exp : 위에서 구해놓음. 실제 지수 e는 exp - BIAS. e는 ORing이 필요 없다.
+    int e = exp - BIAS;
+
+    // 3) frac : LSB 5bit에 넣어놓기
+    fp12 frac = x << 11;
+    frac >>= 11;
+
+    // 4) mantissa : 1.frac
+    // -> 5bit frac | 100000 
+    int mantissa = frac | 0x20;
+
+    //TODO : delete
+//    printf("man: %x , e: %d ", mantissa, e);
+
+    // 5) sign 붙이기 전 : mantissa를 e-5만큼 <<. 혹시 shift를 bit수 이상으로 하면 비트가 순환하나?
+    int unsignedResult = 0;
+    if (e-5 > 0) {
+        if (e-5 > 32) unsignedResult = 0; //|= (mantissa <<= 32);
+        else unsignedResult |= (mantissa <<= (e-5));
+    } else {
+        if (5-e > 32) unsignedResult = 0; // |= (mantissa >>= 32);
+        else unsignedResult |= (mantissa >>= (5-e));
+    }
+
+    //TODO : delete
+  //  printf("unRes: %x ", unsignedResult);
+
+    // 6) fp12가 의미하는 값이 int의 범위를 넘어서면 0x80000000 으로 표현. (4점)
+    // -> fp12 positive Max : 00000 111110 11111 = 1.11111 * 2^31 = 11111100 0~ 0~ 0~
+    // -> int pos Max : 01111111 1~ 1~ 1~
+    // -> int가 나타낼 수 있는 범위를 넘어섰기에 overflow가 나타난다.
+    if (sign == 0) {
+        if ((unsigned int)unsignedResult > 0x7fffffff) return 0x80000000;
+    } 
+    // fp12 negative Max(abs) : 11111 111110 11111 = -1.11111 * 2^31 -> int로 나타낼 수 없다.
+    // int neg Max(abs) : 10000000 0~ 0~ 0~ (절대값으로 생각해보자)
+    else {
+        if ((unsigned int)unsignedResult > (unsigned int)0x80000000) return 0x80000000;
+    }
+
+
+    // 7) result : +면 그대로, -면 2's complement 해서 내보냄
+    int result = unsignedResult;
+    if (sign == 1) result = ~unsignedResult +1;
+
+    return result;
+    
 }
 
-/* Convert 32-bit single-precision floating point to 12-bit floating point */
+/*------- Convert 32-bit single-precision floating point to 12-bit floating point -------*/
 fp12 float_fp12(float f)
 {
 	/* TODO */
 	return 1;
 }
 
-/* Convert 12-bit floating point to 32-bit single-precision floating point */
+/*--------- Convert 12-bit floating point to 32-bit single-precision floating point ----*/
 float fp12_float(fp12 x)
 {
 	/* TODO */
