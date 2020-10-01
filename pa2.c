@@ -17,6 +17,8 @@
 #include "pa2.h"
 #define BIAS 31
 
+typedef enum {false, true} bool; //#include <stdbool.h> 해야하지만 여기선 사용불가하므로.
+
 //TODO : delete
 #include <stdio.h>
 
@@ -98,7 +100,7 @@ fp12 int_fp12(int n)
     unsigned int rs = 0xffffffff >> 6; // int 1bit + frac 5 bit -> 00000LR111111111...
     
     // rs & un 한 게 >= 00000010 00000000 00000000 00000001 이면 s==1 이라는 의미다. 
-    bool RS = rs & un > 0x02000000 ? true : false;
+    bool RS = (rs & un) > 0x02000000 ? true : false;
 
 
     //
@@ -107,7 +109,7 @@ fp12 int_fp12(int n)
     unsigned int lr = 0xffffffff >> 5; // int 1bit + frac 5bit 중 LSB니까 5bit shift -> 00000111.....
     
     // lr & un >= 000001100 00000000 00000000 00000000 이면 s에 상관 없이 LR == 11임.
-    bool LR = lr & un >= 0x0c000000 ? true : false;
+    bool LR = (lr & un) >= 0x0c000000 ? true : false;
 
 
     //
@@ -140,12 +142,14 @@ fp12 int_fp12(int n)
     unsigned short int exp = e + BIAS;
     exp <<= 5;
 
-    // 4-3) frac
-
+    // 4-3) frac만 남기기 : << 32-5 한 후에 ORing 위해 다시 >>32-5
+    un <<= 32-5;
+    un >>= 32-5;
+    
 
     fp12 result = 0; // 결과 저장할 fp12형 16bit를 0으로 초기화
 
-    result |= sign|exp; // 애초에 16bit로 extend하면 1byte로 선언해놓고 result에 넣을 때 shift 연산 안 해도 돼서 이렇게 함.
+    result |= sign | exp | un; // 애초에 16bit로 extend하면 1byte로 선언해놓고 result에 넣을 때 shift 연산 안 해도 돼서 이렇게 함.
 
     return result;
 }
