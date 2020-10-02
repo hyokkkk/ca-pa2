@@ -207,33 +207,38 @@ int fp12_int(fp12 x)
 //    printf("man: %x , e: %d ", mantissa, e);
 
     // 5) sign 붙이기 전 : mantissa를 e-5만큼 <<. 혹시 shift를 bit수 이상으로 하면 비트가 순환하나?
+    // -> 가상의 소숫점이 frac 5bit를 가진다고 봐야하니까 실제 지수가 7이면 << 2 해야 함.
+    // -> e-5가 음수면 >>해야 함. 32bit shift 이상이면 비트가 순환해서 오류가 생기므로 초기값인 0으로 놔둔다.
     int unsignedResult = 0;
-    if (e-5 > 0) {
-        if (e-5 > 32) unsignedResult = 0; //|= (mantissa <<= 32);
-        else unsignedResult |= (mantissa <<= (e-5));
-    } else {
-        if (5-e > 32) unsignedResult = 0; // |= (mantissa >>= 32);
-        else unsignedResult |= (mantissa >>= (5-e));
-    }
+    if (0 < e-5 && e-5 <= 32) unsignedResult |= (mantissa <<= (e-5));
+    else if (0 <= 5-e && 5-e <= 32) unsignedResult |= (mantissa >>= (5-e));
+    
 
     //TODO : delete
   //  printf("unRes: %x ", unsignedResult);
 
-    // 6) fp12가 의미하는 값이 int의 범위를 넘어서면 0x80000000 으로 표현. (4점)
+//
+// 2. Range overflow check
+//    fp12가 의미하는 값이 int의 범위를 넘어서면 0x80000000 으로 표현. (4점)
+    
+
+    // 1) Pos num
     // -> fp12 positive Max : 00000 111110 11111 = 1.11111 * 2^31 = 11111100 0~ 0~ 0~
     // -> int pos Max : 01111111 1~ 1~ 1~
     // -> int가 나타낼 수 있는 범위를 넘어섰기에 overflow가 나타난다.
     if (sign == 0) {
         if ((unsigned int)unsignedResult > 0x7fffffff) return 0x80000000;
     } 
+    // 2) Neg num
     // fp12 negative Max(abs) : 11111 111110 11111 = -1.11111 * 2^31 -> int로 나타낼 수 없다.
     // int neg Max(abs) : 10000000 0~ 0~ 0~ (절대값으로 생각해보자)
     else {
         if ((unsigned int)unsignedResult > (unsigned int)0x80000000) return 0x80000000;
     }
 
-
-    // 7) result : +면 그대로, -면 2's complement 해서 내보냄
+//
+// 3. result : +면 그대로, -면 2's complement 해서 내보냄
+//
     int result = unsignedResult;
     if (sign == 1) result = ~unsignedResult +1;
 
@@ -249,8 +254,99 @@ fp12 float_fp12(float f)
 }
 
 /*--------- Convert 12-bit floating point to 32-bit single-precision floating point ----*/
+
 float fp12_float(fp12 x)
 {
-	/* TODO */
-	return 1.0;
+/* float : sign = 1bit     exp = 8bit      frac = 23bit */
+/* float 지수 표기법
+ *      ex) 31.3324 = 3.13324e1f
+ *      ex) 0.01327 = 1.327e-2f
+ */
+
+//
+// 0. fp12's sign, exp, frac extraction
+//
+    // 1) fp12 sign : 1111 1000 0000 0000 보다 크면 sign == 1.
+    char fpSign = x >= 0xf800 ? 1 : 0;
+
+    // 2) fp12 exp
+    fp12 fpExp = x << 5; //sign remove
+    fpExp >>= 10; // frac remove
+
+    // 3) fp12 frac
+    fp12 fpFrac = x << 11;
+    fpFrac >>= 11;
+
+
+
+//
+// 1. INF, NaN, 0
+//
+
+    // 1) INF : exp == 111111, frac == 00000
+    if (fpExp == 0x3f && fpFrac == 0)
+       return fpSign == 0 ? 1/0.0 : -1/0.0;
+
+    // 2) NaN : exp == 111111, frac != 00000
+    if (fpExp == 0x3f && fpFrac != 0) {
+        return fpSign == 0 ? 0.0/0.0: -0.0/0.0; } //TODO : 왜 -nan으로 표현되지?
+
+    // 3) 0 : exp == 000000, frac == 00000
+    if (fpExp==0 && fpFrac ==0) 
+        return fpSign == 0 ? 0.0 : -0.0;
+    
+
+//
+// 2. General case
+// -> float는 bitwise operation이 안 된다. bit에 바로 때려넣는 거 불가.
+// -> 입력으로 들어온 sign, exp, frac을 분석해서 실제 값으로 환산하기로 함.
+//
+    // 1) sign : 위에서 함
+    // 2) 실제 지수 구하기 : normal, denormal 따로.
+    int e = fpExp == 0 ? 1-BIAS : fpExp - BIAS;
+
+    // TODO : delete
+//    printf("\nfsign: %x, fexp: %x, e: %d, ffrac: %x\n", fpSign, fpExp, e, fpFrac);
+
+    // 3) mantissa 구하기 : frac 값 + 1
+    // -> fp12 frac : 5bit. bit의 값에 /32 하면 실제 frac의 값이 나온다.
+    float mantissa = fpExp == 0 ? fpFrac/32.0f: 1+fpFrac/32.0f;
+
+    // 4) 2^e 값 구하기
+    int twoPowE = 1;
+    twoPowE = e >= 0 ? twoPowE << e : twoPowE << -e; // e >= 0
+
+    float twoPowNegE = 1.0f/twoPowE;
+
+    float unsigned_result = e >= 0 ? mantissa * twoPowE : mantissa * twoPowNegE;
+    float result = fpSign == 0 ? unsigned_result : -unsigned_result;
+
+//
+// 1. INF, NaN, 0
+//
+    // 1) NaN : exp == 111111, frac != 00000
+    // fpexp << 23, fpfrac는 shift 없이 그냥 or 하자. 귀찮.
+/*    if (fpExp == 0x3f && fpFrac != 0){
+        exp = 0xff << 23;
+        frac = fpFrac;
+        sign = fpSign << 31;
+        result |= (exp | frac | sign); // float은 이게 안 되네.
+    }
+    // 2) INF : exp == 111111, frac == 00000
+    else if (fpExp == 0x3f && fpFrac == 0){
+        exp = 0xff << 23;
+        frac = fpFrac << 18;
+        sign = fpSign << 31;
+        result |= (exp | frac | sign);
+    }
+    // 3) 0 : exp == 000000, frac == 00000
+    // 부호 1일 때에만 MSB에 1 넣어주면 됨.
+    else if (fpExp == 0 && fpFrac == 0){
+        if (fpSign == 1) result = 0x80000000;
+    }
+*/
+
+    return result;
+
+
 }
