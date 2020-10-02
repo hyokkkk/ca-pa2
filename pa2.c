@@ -20,7 +20,9 @@
 typedef enum {false, true} bool; //#include <stdbool.h> 해야하지만 여기선 사용불가하므로.
 
 //TODO : delete
-//#include <stdio.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <sys/types.h>
 
 /********* How to normalize *********/
 
@@ -167,6 +169,11 @@ fp12 int_fp12(int n)
 
 
 
+
+
+
+
+
 /*--------------- Convert 12-bit floating point to 32-bit signed integer ------------------*/
 
 
@@ -246,12 +253,139 @@ int fp12_int(fp12 x)
     
 }
 
+
+
+
+
+
+
+
 /*------- Convert 32-bit single-precision floating point to 12-bit floating point -------*/
+
+//
+// 공용체의 존재사실을 망각하고 있었다!
+//
+// <-------------union---------------->
+//
+// +-+--------+-----------------------+
+// |S|exp 8bit|      frac 23bit       | <- float 
+// +-+--------+-----------------------+
+// +----------------+----------------+
+// |  upper 16bit   |  lower 16bit   | <- struct
+// +----------------+----------------+
+//
+// 이렇게 메모리를 공유하도록 Union을 만든다.
+//
+
+typedef struct {
+    unsigned short lower; //stack에 쌓이니까 lower먼저 선언해줘야 뒷부분이 lower에 할당됨
+    unsigned short upper;
+} Struct;
+
+typedef union {
+    float input;
+    Struct twoShort;
+} Union;
+
+
 fp12 float_fp12(float f)
 {
-	/* TODO */
-	return 1;
+//
+// 0. float's sign, exp, frac extraction
+//
+    // 0) input float 값을 공용체 전체공간에 저장
+    Union uni;
+    uni.input = f;
+    
+    //TODO : delete
+//    printf("%f ", uni.input);
+
+    // 1) float sign : +0, -0도 커버된다.
+    char fsign = f > 0 ? 0 : 1;
+
+    // 2) exp : uni.twoshort.upper, uni.twoshort.lower 의 값 읽어와서 필요한 부분만 추출
+    unsigned short fexp = uni.twoShort.upper << 1; // remove sign bit
+    unsigned short lower = uni.twoShort.lower;
+
+    //TODO : delete
+//    printf("up:%x lo:%x ", exp, lower);
+
+    fexp >>= 8; // remove frac bits 
+
+    // TODO : delete
+    printf("fexp: %d ", fexp);
+
+    // 3) frac : upper lsb 7bit + lower 16bit.
+    // 3-1) 16bit upper 조절해서 7bit만 남긴다 -> fp12 frac = 5bit니까 xxxxLRS' 형태가 남는다.
+    unsigned short fracMSB7 = uni.twoShort.upper << 9;
+    fracMSB7 >>= 9;
+
+    // 3-2) lower 16bit > 0 && S==1이면 sticky
+    // 현재, frac msb 7bit + 그 이하 sticky 여부 구해놓음
+    
+    
+//
+// 1. special forms : INF, NaN, 0
+//
+    // 원래 지수 
+    int e = fexp == 0 ? 1-127 : fexp -127;
+/*
+    // fexp 다 1인 것 : INF, NaN  
+    if (fexp == 0xff){
+    
+        // 1) INF: frac = 0000~
+        if (fracMSB7 == 0 && lower == 0) 
+            return fsign == 0 ? 0x07e0 : 0xffe0; // +INF: 00000 111111 00000. -INF: 11111 111111 00000 
+    
+        // 2) NaN: frac != 0000~ / +NaN: 00000 111111 10000. -Nan : 11111 ~~
+        else return fsign == 0 ? 0x07f0 : 0xfff0;    
+    
+        // 3) +0, -0 & denorm
+        // -> denorm의 frac이 all 1이어도 fexp = 0 -> e = -126이다. 절대 fp12로 못나타냄 
+        // -> e < -30 이어도 0 돼야 함.
+    } else if (e < -30) 
+        return fsign == 0 ? 0 : 0xf800;
+*/ 
+// looking better
+    // 1) INF : fexp = 1111 1111, frac = 0
+    if (fexp == 0xff && fracMSB7 == 0 && lower == 0)
+        return fsign == 0 ? 0x07e0 : 0xffe0;
+     
+    // 2) Nan : fexp = 1111 1111, frac != 0
+    if (fexp == 0xff && (fracMSB7 != 0 || lower != 0))
+        return fsign == 0 ? 0x07f0 : 0xfff0;
+    
+    // 3) NaN까지 다 한 후에 exp > 158 인 것들 마저 걸러낸다. (그 전에 하면 nan까지 inf로 됨)
+    // -> fp12 Max: e=31. fexp = e + 127. fexp Max: 158. ==> 158 < fexp 는 INF이다
+    if (fexp > 158) return fsign == 0 ? 0x07e : 0xffe0;
+
+    // 4) +0, -0 & denormalized form
+    // -> denorm의 frac이 all 1이어도 fexp = 0 -> e = -126이다. 절대 fp12로 못나타냄 
+    // -> e < -30 이어도 0 돼야 함.
+    if (e < -30)
+        return fsign == 0 ? 0 : 0xf800;
+
+
+//
+// 2. Rounding : 후에 denormal -> 0 되는 것 체크. 
+//
+
+
+
+
+    return 1;
+
+
 }
+
+
+
+
+
+
+
+
+
 
 /*--------- Convert 12-bit floating point to 32-bit single-precision floating point ----*/
 
@@ -329,7 +463,6 @@ float fp12_float(fp12 x)
     if (e == 31) return -unsigned_result;
 
     float result = fpSign == 0 ? unsigned_result : -unsigned_result;
-
 
     return result;
 
