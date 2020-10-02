@@ -20,9 +20,9 @@
 typedef enum {false, true} bool; //#include <stdbool.h> 해야하지만 여기선 사용불가하므로.
 
 //TODO : delete
-#include <stdio.h>
-#include <stdint.h>
-#include <sys/types.h>
+// #include <stdio.h>
+
+
 
 /********* How to normalize *********/
 
@@ -308,17 +308,19 @@ fp12 float_fp12(float f)
     unsigned short lower = uni.twoShort.lower;
 
     //TODO : delete
-//    printf("up:%x lo:%x ", exp, lower);
 
     fexp >>= 8; // remove frac bits 
 
     // TODO : delete
-    printf("fexp: %d ", fexp);
+//    printf("fsign: %d, fexp: %d ", fsign, fexp);
 
     // 3) frac : upper lsb 7bit + lower 16bit.
     // 3-1) 16bit upper 조절해서 7bit만 남긴다 -> fp12 frac = 5bit니까 xxxxLRS' 형태가 남는다.
     unsigned short fracMSB7 = uni.twoShort.upper << 9;
     fracMSB7 >>= 9;
+
+    // TODO : delete
+  //  printf("fracMSB7: %x ", fracMSB7);
 
     // 3-2) lower 16bit > 0 && S==1이면 sticky
     // 현재, frac msb 7bit + 그 이하 sticky 여부 구해놓음
@@ -353,27 +355,109 @@ fp12 float_fp12(float f)
      
     // 2) Nan : fexp = 1111 1111, frac != 0
     if (fexp == 0xff && (fracMSB7 != 0 || lower != 0))
-        return fsign == 0 ? 0x07f0 : 0xfff0;
-    
+        return fsign == 0 ? 0x07f1 : 0xfff1;
+ 
     // 3) NaN까지 다 한 후에 exp > 158 인 것들 마저 걸러낸다. (그 전에 하면 nan까지 inf로 됨)
     // -> fp12 Max: e=31. fexp = e + 127. fexp Max: 158. ==> 158 < fexp 는 INF이다
-    if (fexp > 158) return fsign == 0 ? 0x07e : 0xffe0;
+    if (fexp > 158) return fsign == 0 ? 0x07e0 : 0xffe0;
 
-    // 4) +0, -0 & denormalized form
-    // -> denorm의 frac이 all 1이어도 fexp = 0 -> e = -126이다. 절대 fp12로 못나타냄 
-    // -> e < -30 이어도 0 돼야 함.
-    if (e < -30)
+    // 4) +0, -0 : fexp = 0000 0000, frac = 0
+    // 일단 0부터 하자. denorm은 rounding 다 끝나고 판단.
+    if (fexp == 0 && fracMSB7 == 0 && lower == 0)
         return fsign == 0 ? 0 : 0xf800;
 
 
+
+
 //
-// 2. Rounding : 후에 denormal -> 0 되는 것 체크. 
+// 2. Rounding : LRS = 011, 111, 110 일 때만 +1하고 나머지는 truncate한다.
 //
+    // 1) RS == 11 check
+    // lower에 1이 있으면 R만 1이어도 됨. 없으면 RS 다 1이어야 함.
+    bool RS;
+    unsigned short rs = 0xffff; 
+    // TODO : bit shift는 int로 변환시켜서 진행한다. 그래서 계속 여기서 문제가 생겼던거였어....
+    if (lower > 0) RS = (unsigned short)((rs & fracMSB7) << 14) >= 0x8000 ? true : false;
+    else RS = (unsigned short)((rs & fracMSB7) << 14) >= 0xc000 ? true : false; 
+
+// TODO : delete
+//    printf("<<한거: %x ", (rs&fracMSB7) <<13);
+
+    // 2) LR == 11 check
+    unsigned short lr = 0xffff;
+    bool LR = (unsigned short)((lr & fracMSB7) << 13) >= 0xc000 ? true : false;
+    
+    //TODO : delete
+// printf("RS: %d, LR: %d , frac7: %x ",RS, LR, fracMSB7);
+
+    // 3) truncate 후 LRS 조건에 맞는 것만 +1
+    unsigned short frac = fracMSB7 >> 2; // fracMSB7 = xxxxLRS 니까 RS 날림. >>1한게 문제엿어...ㅅㅂ
+    if (RS || LR) frac += 1; 
+   // TODO : delete
+   // printf("bfr e: %d, frac: %x ", e, frac);
+
+//
+// 3. Renormalization : frac이 정상이라면 100000 보다 작음 
+//
+    if ((unsigned short)frac >= 0x20) {
+        e ++;
+        frac = 0;
+    }
+
+//TODO : delete
+// printf("aft e: %d ", e);
+
+
+//
+// 3-1. special case
+//
+    // 1) fp12 Max = 00000 111110 11111 = 1.11111 * 2^31
+    // +INF = 00000 111111 00000 = 0x07e0;
+    // -INF = 11111 111111 00000 = 0xffe0;
+    if (e >= 32){
+       if (fsign == 1)      return 0xffe0;
+       else if (fsign == 0) return 0x07e0;
+    }
+
+    // 2) denorm의 frac이 all 1이어도 fexp = 0 -> e = -126이다. 절대 fp12로 못나타냄 
+    // -> e < -35 이어도 0 돼야 함. 
+    if (e < -35)     return fsign == 0 ? 0 : 0xf800;
+  
+
+
+//
+// 4. encoding (2점 오름 ㅠㅠㅠㅠㅠ 나머지는 어디가 문제인거냐)
+//
+ 
+    fp12 exp = 0;
+    fp12 sign = fsign == 0 ? 0 : 0xf800; // 음수면 11111 000000 00000;
+
+    // 1) fp12가 normalized form 으로 표현되는 경우.
+    if (-30 <= e && e < 32)     exp = (e + BIAS) << 5; 
+
+    // 2) float normal중 rounding 후에 fp12 denormal로 표현되는 수가 있다. 
+    // -> 1.00000 * 2^-35 == 0.00001 * 2^30;
+    // ->   "       2^-34 == 0.00010 * 2^30;
+    // ->   "       2^-33 == 0.00100 * 2^30;
+    // ->   "       2^-32 == 0.01000 * 2^30;
+    // ->   "       2^-31 == 0.10000 * 2^30;
+    //      denorm 이니까 exp=0인 상태로 놔둠.
+    if (-35 <= e && e <= -31) {
+        frac = 1;
+        frac <<= 35+e;
+    }
 
 
 
 
-    return 1;
+// printf("sign: %x, exp: %x\n", sign, exp);
+// TODO : delete
+//    printf("e: %d, exp: %x ",e, exp);
+
+    fp12 result = 0;
+    result |= (sign | exp | frac);  
+
+    return result;
 
 
 }
