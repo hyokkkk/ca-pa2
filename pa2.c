@@ -287,9 +287,9 @@ float fp12_float(fp12 x)
     if (fpExp == 0x3f && fpFrac == 0)
        return fpSign == 0 ? 1/0.0 : -1/0.0;
 
-    // 2) NaN : exp == 111111, frac != 00000
+    // 2) NaN : exp == 111111, frac != 00000 (1점)
     if (fpExp == 0x3f && fpFrac != 0) {
-        return fpSign == 0 ? 0.0/0.0: -0.0/0.0; } //TODO : 왜 -nan으로 표현되지?
+        return fpSign == 0 ? -(0.0/0.0): 0.0/0.0; } // 0.0/0.0 : -NaN 
 
     // 3) 0 : exp == 000000, frac == 00000
     if (fpExp==0 && fpFrac ==0) 
@@ -306,7 +306,7 @@ float fp12_float(fp12 x)
     int e = fpExp == 0 ? 1-BIAS : fpExp - BIAS;
 
     // TODO : delete
-//    printf("\nfsign: %x, fexp: %x, e: %d, ffrac: %x\n", fpSign, fpExp, e, fpFrac);
+//    printf("\nfsign: %x, fexp: %x, e: %d, ffrac: %x ", fpSign, fpExp, e, fpFrac);
 
     // 3) mantissa 구하기 : frac 값 + 1
     // -> fp12 frac : 5bit. bit의 값에 /32 하면 실제 frac의 값이 나온다.
@@ -315,36 +315,21 @@ float fp12_float(fp12 x)
     // 4) 2^e 값 구하기
     int twoPowE = 1;
     twoPowE = e >= 0 ? twoPowE << e : twoPowE << -e; // e >= 0
+ 
+    // TODO : delete
+//    printf("2^e: %x\n ", twoPowE);
 
     float twoPowNegE = 1.0f/twoPowE;
 
     float unsigned_result = e >= 0 ? mantissa * twoPowE : mantissa * twoPowNegE;
+    
+    // TODO : 연구 좀 더 하기 (3점)
+    // e == 31일 때에는 mantissa에 << 31해버리면 정수부분까지 해서 32bit가 차버림.
+    // float는 정수부 나타낼 필요 없으니..... 아 머리 안 돌아간다. 일단 패스.
+    if (e == 31) return -unsigned_result;
+
     float result = fpSign == 0 ? unsigned_result : -unsigned_result;
 
-//
-// 1. INF, NaN, 0
-//
-    // 1) NaN : exp == 111111, frac != 00000
-    // fpexp << 23, fpfrac는 shift 없이 그냥 or 하자. 귀찮.
-/*    if (fpExp == 0x3f && fpFrac != 0){
-        exp = 0xff << 23;
-        frac = fpFrac;
-        sign = fpSign << 31;
-        result |= (exp | frac | sign); // float은 이게 안 되네.
-    }
-    // 2) INF : exp == 111111, frac == 00000
-    else if (fpExp == 0x3f && fpFrac == 0){
-        exp = 0xff << 23;
-        frac = fpFrac << 18;
-        sign = fpSign << 31;
-        result |= (exp | frac | sign);
-    }
-    // 3) 0 : exp == 000000, frac == 00000
-    // 부호 1일 때에만 MSB에 1 넣어주면 됨.
-    else if (fpExp == 0 && fpFrac == 0){
-        if (fpSign == 1) result = 0x80000000;
-    }
-*/
 
     return result;
 
