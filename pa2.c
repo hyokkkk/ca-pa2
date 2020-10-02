@@ -359,7 +359,7 @@ fp12 float_fp12(float f)
  
     // 3) NaN까지 다 한 후에 exp > 158 인 것들 마저 걸러낸다. (그 전에 하면 nan까지 inf로 됨)
     // -> fp12 Max: e=31. fexp = e + 127. fexp Max: 158. ==> 158 < fexp 는 INF이다
-    if (fexp > 158) return fsign == 0 ? 0x07e0 : 0xffe0;
+//    if (fexp > 158) return fsign == 0 ? 0x07e0 : 0xffe0;
 
     // 4) +0, -0 : fexp = 0000 0000, frac = 0
     // 일단 0부터 하자. denorm은 rounding 다 끝나고 판단.
@@ -398,11 +398,11 @@ fp12 float_fp12(float f)
 
 //
 // 3. Renormalization : frac이 정상이라면 100000 보다 작음 
-//
+// TODO : check -> BUT!!! 0.11111 * 2^-30 의 경우에는 +1 돼도 1.00000 * 2^-30이다. ㄴㄴ 애초에 float에서 저 형태가 못나옴
     if ((unsigned short)frac >= 0x20) {
-        e ++;
-        frac = 0;
-    }
+        /*if (e == -30) frac = 0; 
+        else {*/ e ++;   frac = 0;}
+    
 
 //TODO : delete
 // printf("aft e: %d ", e);
@@ -414,10 +414,7 @@ fp12 float_fp12(float f)
     // 1) fp12 Max = 00000 111110 11111 = 1.11111 * 2^31
     // +INF = 00000 111111 00000 = 0x07e0;
     // -INF = 11111 111111 00000 = 0xffe0;
-    if (e >= 32){
-       if (fsign == 1)      return 0xffe0;
-       else if (fsign == 0) return 0x07e0;
-    }
+    if (e >= 32)    return fsign == 1 ? 0xffe0 : 0x07e0;
 
     // 2) denorm의 frac이 all 1이어도 fexp = 0 -> e = -126이다. 절대 fp12로 못나타냄 
     // -> e < -35 이어도 0 돼야 함. 
@@ -433,18 +430,20 @@ fp12 float_fp12(float f)
     fp12 sign = fsign == 0 ? 0 : 0xf800; // 음수면 11111 000000 00000;
 
     // 1) fp12가 normalized form 으로 표현되는 경우.
+    // TODO : 여기 고쳐야함!!!! e= -30일 때 왜 노말로 해놨어.... 디노말도 -30일 때 있잖아....
+    // 일단 e는 normal로 가정? ㅇㅇ 디노말로 표현되는 건 2)밖에 없음.
     if (-30 <= e && e < 32)     exp = (e + BIAS) << 5; 
 
     // 2) float normal중 rounding 후에 fp12 denormal로 표현되는 수가 있다. 
-    // -> 1.00000 * 2^-35 == 0.00001 * 2^30;
-    // ->   "       2^-34 == 0.00010 * 2^30;
-    // ->   "       2^-33 == 0.00100 * 2^30;
-    // ->   "       2^-32 == 0.01000 * 2^30;
-    // ->   "       2^-31 == 0.10000 * 2^30;
+    // -> 1.00000 * 2^-35 == 0.00001 * 2^-30;
+    // -> 1.x0000   2^-34 == 0.0001x * 2^-30;
+    // -> 1.xx000   2^-33 == 0.001xx * 2^-30;
+    // -> 1.xxx00   2^-32 == 0.01xxx * 2^-30;
+    // -> 1.xxxx0   2^-31 == 0.1xxxx * 2^-30;
     //      denorm 이니까 exp=0인 상태로 놔둠.
     if (-35 <= e && e <= -31) {
-        frac = 1;
-        frac <<= 35+e;
+        frac |= 0x20;
+        frac >>= -30 -e;
     }
 
 
