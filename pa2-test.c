@@ -16,6 +16,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <sys/types.h>
 
 #define RED   "\033[0;31m"
 #define GREEN "\033[0;32m"
@@ -92,7 +93,7 @@ uint16_t test2[N] =	{0xf800, 0x04d6, 0x044c, 0xf81f, 0x07e0, 0xffff};
 uint32_t ans2[N] =	{0x00000000, 0x000000d8, 0x0000000b, 0x00000000, 0x80000000, 0x80000000};
 
 /* float -> fp12 */
-uint32_t test3[N] =	{0x00000001, 0x3fe00000, 0xe0000000, 0x80b5840c, 0x7f800000, 0xff800001};
+uint32_t test3[N] =	{0x2dffffff, 0x30f80000, 0x4f7fffff, 0x2e78ffff, 0x7f800000, 0xff800001};
 uint16_t ans3[N] =	{0x0000, 0x03f8, 0xffe0, 0xf800, 0x07e0, 0xffe1};
 
 /* fp12 -> float */
