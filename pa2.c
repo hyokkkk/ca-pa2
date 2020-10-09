@@ -231,6 +231,9 @@ typedef union {
     Struct twoShort;
 } Union;
 
+// TODO : 이것이 핵심임!
+// float norm -> fp12 denorm 경곗값 : 1.frac(!=0) * 2^-36
+// float norm -> fp12 denorm -> renorm : 0.11111 * 2^-30 -> 1.00000 * 2^-30 
 
 fp12 float_fp12(float f)
 {
@@ -248,7 +251,7 @@ fp12 float_fp12(float f)
     unsigned short fexp = uni.twoShort.upper << 1; // remove sign bit
     fexp >>= 8; // remove frac bits 
 
-    // 3) frac : upper lsb 7bit + lower 16bit.
+    // 3) frac
     unsigned int wholefrac = uni.wholefrac << 9; // 32bit에 전체 frac을 담아 앞에서부터 채움.
     
 //
