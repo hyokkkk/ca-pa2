@@ -19,11 +19,6 @@
 
 typedef enum {false, true} bool; //#include <stdbool.h> 해야하지만 여기선 사용불가하므로.
 
-//TODO : delete
- #include <stdio.h>
-
-
-
 /********* How to normalize *********/
 
 // 0. MSB로 sign 받아놓음.
@@ -68,17 +63,13 @@ fp12 int_fp12(int n)
     unsigned short int sign = n < 0 ? 0xf800 : 0; // -: 1111 1000 0000 0000, 0 & +: 00000000 00000000
     unsigned int un= n < 0 ? (unsigned int) ~n+1 : n; //음수면 양수로 바꿈. -2147483648같은 경계값은 -붙여도 자기 자신임. 
 
-    //TODO : 이렇게 쓰면 MSB를 그냥 숫자로 읽어서 -101이 101이 되는 게 아니라 엄청 큰 수로 인식됨.
+    //이렇게 쓰면 MSB를 sign이 아닌 그냥 숫자로 읽어서 -101이 101이 되는 게 아니라 엄청 큰 수로 인식됨.
     //unsigned int un =(unsigned int)n ;
 
 
 //
 // 1. Normalizing & E 구하기
 //
-
-    //TODO : delete
- //   printf("n : %d, un : %u, 맨앞1: %u\n", n, un, 0x80000000);
-
     int cnt = 0;
     
     // un의 MSB == 1일 때까지 shift
@@ -86,8 +77,6 @@ fp12 int_fp12(int n)
     
     int e = 31 - cnt;
 
-    //TODO : delete
-//    printf("정규: %x ", un);
 
 
 //
@@ -100,8 +89,6 @@ fp12 int_fp12(int n)
     // --> (rs & un) << 6 한 게 10000000 00000000 00000000 01000000 이상이면 됨.
     bool RS = (rs & un) <<6 >= 0x80000040 ? true : false;
     
-    //TODO : delete
-  //  printf("RS: %d ", RS);
 
     // 2) LR == 11 check
     unsigned int lr = 0xffffffff; // int 1bit + frac 5bit 중 LSB니까 5bit shift
@@ -109,8 +96,6 @@ fp12 int_fp12(int n)
     // --> (lr & un) << 5 한 게 11000000 00000000 0~ 0~ 이상이면 됨.
     bool LR = (lr & un) << 5 >= 0xc0000000 ? true : false;
     
-    //TODO : delete
-    //printf("LR: %d ", LR);
 
     // 3) truncate 후 LRS 조건에 맞는 것만 +1
     un >>= 32-6; // int 1bit + frac 5bit = 6bit만 남게 shift 
@@ -299,7 +284,7 @@ fp12 float_fp12(float f)
     uni.input = f;
     
     // 1) float sign : +0, -0도 커버된다.
-    char fsign = f > 0 ? 0 : 1;
+    char fsign = uni.wholefrac < 0x80000000 ? 0 : 1;
 
     // 2) exp : uni.twoshort.upper 값 읽어와서 필요한 부분만 추출
     unsigned short fexp = uni.twoShort.upper << 1; // remove sign bit
@@ -358,7 +343,7 @@ fp12 float_fp12(float f)
     }
 
     // TODO : delete
-    printf("bool: %d , boolwholefrac: %x ", denormflag, wholefrac);
+  //  printf("bool: %d , boolwholefrac: %x ", denormflag, wholefrac);
 
 //
 // 3. Rounding : LRS = 011, 111, 110 일 때만 +1하고 나머지는 truncate한다.
@@ -388,7 +373,7 @@ fp12 float_fp12(float f)
     unsigned short frac = wholefrac >> 27; // fracMSB7 = xxxxLRS 니까 RS 날림. >>1한게 문제엿어...ㅅㅂ
     if (RS || LR) frac += 1; 
    // TODO : delete
-    printf("wholefrac: %x frac: %x ", wholefrac, frac);
+//    printf("wholefrac: %x frac: %x ", wholefrac, frac);
 
 //
 // 3. Renormalization : frac이 정상이라면 100000 보다 작음 
@@ -402,7 +387,7 @@ fp12 float_fp12(float f)
     
 
 //TODO : delete
-printf("aft e: %d \n", e);
+// printf("aft e: %d \n", e);
 
 
 //
