@@ -106,16 +106,10 @@ fp12 int_fp12(int n)
 // -> 정상이라면 1xxxxx처럼 6bit 숫자임. but 10.00000처럼 7bit로 넘어가는 경우도 있다.
 // -> 01000000 이상이면 >>1 하고 e += 1;
     
-    //TODO : delete
-    //printf("un: %x ", un);
-
     if (un >= 0x40) {
         un >>= 1;
         e += 1;
     }
-    
-    //TODO : delete
-    //printf("e: %d ", e);
 
 // TODO: 2점이 깎이는데 여기가 문제가 아닌가... 이 문단은 없어도 점수 동일함.
 // 3-1. special case
@@ -128,8 +122,6 @@ fp12 int_fp12(int n)
        if (sign == 0xf800) return 0xffe0;
        else if (sign == 0) return 0x07e0;
     }
-
-
 
 
 // 4. Encoding
@@ -195,9 +187,6 @@ int fp12_int(fp12 x)
     // -> 5bit frac | 100000 
     int mantissa = frac | 0x20;
 
-    //TODO : delete
-//    printf("man: %x , e: %d ", mantissa, e);
-
     // 5) sign 붙이기 전 : mantissa를 e-5만큼 <<. 혹시 shift를 bit수 이상으로 하면 비트가 순환하나?
     // -> 가상의 소숫점이 frac 5bit를 가진다고 봐야하니까 실제 지수가 7이면 << 2 해야 함.
     // -> e-5가 음수면 >>해야 함. 32bit shift 이상이면 비트가 순환해서 오류가 생기므로 초기값인 0으로 놔둔다.
@@ -206,14 +195,11 @@ int fp12_int(fp12 x)
     else if (0 <= 5-e && 5-e <= 32) unsignedResult |= (mantissa >>= (5-e));
     
 
-    //TODO : delete
-  //  printf("unRes: %x ", unsignedResult);
 
 //
 // 2. Range overflow check
 //    fp12가 의미하는 값이 int의 범위를 넘어서면 0x80000000 으로 표현. (4점)
     
-
     // 1) Pos num
     // -> fp12 positive Max : 00000 111110 11111 = 1.11111 * 2^31 = 11111100 0~ 0~ 0~
     // -> int pos Max : 01111111 1~ 1~ 1~
@@ -227,6 +213,7 @@ int fp12_int(fp12 x)
     else {
         if ((unsigned int)unsignedResult > (unsigned int)0x80000000) return 0x80000000;
     }
+
 
 //
 // 3. result : +면 그대로, -면 2's complement 해서 내보냄
@@ -283,18 +270,17 @@ fp12 float_fp12(float f)
     Union uni;
     uni.input = f;
     
-    // 1) float sign : +0, -0도 커버된다.
+    // 1) float sign : +0, -0도 커버된다. NaN 부호 못받아서 -2였음.
     char fsign = uni.wholefrac < 0x80000000 ? 0 : 1;
 
     // 2) exp : uni.twoshort.upper 값 읽어와서 필요한 부분만 추출
     unsigned short fexp = uni.twoShort.upper << 1; // remove sign bit
     fexp >>= 8; // remove frac bits 
 
-    // TODO : delete
-//    printf("fsign: %d, fexp: %d ", fsign, fexp);
-
     // 3) frac : upper lsb 7bit + lower 16bit.
     unsigned int wholefrac = uni.wholefrac << 9; // 32bit에 전체 frac을 담아 앞에서부터 채움.
+
+
     
 //
 // 1. special forms : INF, NaN, 0
@@ -302,10 +288,6 @@ fp12 float_fp12(float f)
     // 원래 지수 
     int e = fexp -127;
     
-    //TODO : delete
-//    printf("brf e: %d \n", e);
-
-
     // 1) +0, -0 : fexp = 0000 0000
     // -> fp denorm은 무조건 0으로 변환된다. 
     // -> e <= -37도 무조건 0으로 변환된다. -36 <= e <= -31 은 fp normal -> fp12 denormal이라서 따로 다룸
@@ -327,8 +309,6 @@ fp12 float_fp12(float f)
     // -> fp12 Max: e=31. fexp = e + 127. fexp Max: 158. ==> 158 < fexp 는 INF이다
     if (e > 31) return fsign == 0 ? 0x07e0 : 0xffe0;
 
-// TODO : delete
-// printf("bfr wholefrac: %x ", wholefrac);
 
 
 //
@@ -342,41 +322,28 @@ fp12 float_fp12(float f)
         e = -30; // denorm으로 만들어야하니 e==-30으로 통일시킴
     }
 
-    // TODO : delete
-  //  printf("bool: %d , boolwholefrac: %x ", denormflag, wholefrac);
+
 
 //
 // 3. Rounding : LRS = 011, 111, 110 일 때만 +1하고 나머지는 truncate한다.
 //
     // 1) RS == 11 check
     // lower에 1이 있으면 R만 1이어도 됨. 없으면 RS 다 1이어야 함.
-    
     unsigned int rs = wholefrac << 5;
     bool RS = rs > 0x80000000 ? true : false;
-    
-    //TODO : delete
-   // printf("rs: %x ", rs);
-
-
-// TODO : delete
-//    printf("<<한거: %x ", (rs&fracMSB7) <<13);
 
     // 2) LR == 11 check
-   
     unsigned int lr = wholefrac << 4;
     bool LR = lr >= 0xc0000000 ? true : false;
-
-    //TODO : delete
-// printf("RS: %d, LR: %d , frac7: %x ",RS, LR, fracMSB7);
 
     // 3) truncate 후 LRS 조건에 맞는 것만 +1
     unsigned short frac = wholefrac >> 27; // fracMSB7 = xxxxLRS 니까 RS 날림. >>1한게 문제엿어...ㅅㅂ
     if (RS || LR) frac += 1; 
-   // TODO : delete
-//    printf("wholefrac: %x frac: %x ", wholefrac, frac);
+
+
 
 //
-// 3. Renormalization : frac이 정상이라면 100000 보다 작음 
+// 4. Renormalization : frac이 정상이라면 100000 보다 작음 
 //
     if ((unsigned short)frac >= 0x0020) {
         frac = 0;
@@ -385,9 +352,6 @@ fp12 float_fp12(float f)
         else e++;
     }
     
-
-//TODO : delete
-// printf("aft e: %d \n", e);
 
 
 //
@@ -398,10 +362,6 @@ fp12 float_fp12(float f)
     // -INF = 11111 111111 00000 = 0xffe0;
     if (e >= 32)    return fsign == 1 ? 0xffe0 : 0x07e0;
 
-    // 2) denorm의 frac이 all 1이어도 fexp = 0 -> e = -126이다. 절대 fp12로 못나타냄 
-    // -> e < -35 이어도 0 돼야 함. 
-//    if (e < -35)     return fsign == 0 ? 0 : 0xf800;
-  
 
 
 //
@@ -417,37 +377,10 @@ fp12 float_fp12(float f)
     if (!denormflag) exp = (e + BIAS) << 5;
 
 
-    // 1) fp12가 normalized form 으로 표현되는 경우.
-    // TODO : 여기 고쳐야함!!!! e= -30일 때 왜 노말로 해놨어.... 디노말도 -30일 때 있잖아....
-    // 일단 e는 normal로 가정? ㅇㅇ 디노말로 표현되는 건 2)밖에 없음.
-//    if (-30 <= e && e < 32)     exp = (e + BIAS) << 5; 
-
-
-
-    // 2) float normal중 rounding 후에 fp12 denormal로 표현되는 수가 있다. 
-    // -> 1.00000 * 2^-35 == 0.00001 * 2^-30;
-    // -> 1.x0000   2^-34 == 0.0001x * 2^-30;
-    // -> 1.xx000   2^-33 == 0.001xx * 2^-30;
-    // -> 1.xxx00   2^-32 == 0.01xxx * 2^-30;
-    // -> 1.xxxx0   2^-31 == 0.1xxxx * 2^-30;
-    //      denorm 이니까 exp=0인 상태로 놔둠.
-//    if (-35 <= e && e <= -31) {
-  //      frac |= 0x20;
-    //    frac >>= -30 -e;
-    //}
-
-
-
-
-// printf("sign: %x, exp: %x\n", sign, exp);
-// TODO : delete
-//    printf("e: %d, exp: %x ",e, exp);
-
     fp12 result = 0;
     result |= (sign | exp | frac);  
 
     return result;
-
 
 }
 
