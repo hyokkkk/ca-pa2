@@ -20,7 +20,7 @@
 typedef enum {false, true} bool; //#include <stdbool.h> 해야하지만 여기선 사용불가하므로.
 
 //TODO : delete
-// #include <stdio.h>
+ #include <stdio.h>
 
 
 
@@ -284,6 +284,7 @@ typedef struct {
 
 typedef union {
     float input;
+    unsigned int wholefrac;
     Struct twoShort;
 } Union;
 
@@ -297,75 +298,50 @@ fp12 float_fp12(float f)
     Union uni;
     uni.input = f;
     
-    //TODO : delete
-//    printf("%f ", uni.input);
-
     // 1) float sign : +0, -0도 커버된다.
     char fsign = f > 0 ? 0 : 1;
 
-    // 2) exp : uni.twoshort.upper, uni.twoshort.lower 의 값 읽어와서 필요한 부분만 추출
+    // 2) exp : uni.twoshort.upper 값 읽어와서 필요한 부분만 추출
     unsigned short fexp = uni.twoShort.upper << 1; // remove sign bit
-    unsigned short lower = uni.twoShort.lower;
-
-    //TODO : delete
-
     fexp >>= 8; // remove frac bits 
 
     // TODO : delete
 //    printf("fsign: %d, fexp: %d ", fsign, fexp);
 
     // 3) frac : upper lsb 7bit + lower 16bit.
-    // 3-1) 16bit upper 조절해서 7bit만 남긴다 -> fp12 frac = 5bit니까 xxxxLRS' 형태가 남는다.
-    unsigned short fracMSB7 = uni.twoShort.upper << 9;
-    fracMSB7 >>= 9;
-
-    // TODO : delete
-  //  printf("fracMSB7: %x ", fracMSB7);
-
-    // 3-2) lower 16bit > 0 && S==1이면 sticky
-    // 현재, frac msb 7bit + 그 이하 sticky 여부 구해놓음
-    
+    unsigned int wholefrac = uni.wholefrac << 9; // 32bit에 전체 frac을 담아 앞에서부터 채움.
     
 //
 // 1. special forms : INF, NaN, 0
 //
     // 원래 지수 
-    int e = fexp == 0 ? 1-127 : fexp -127;
-/*
-    // fexp 다 1인 것 : INF, NaN  
-    if (fexp == 0xff){
-    
-        // 1) INF: frac = 0000~
-        if (fracMSB7 == 0 && lower == 0) 
-            return fsign == 0 ? 0x07e0 : 0xffe0; // +INF: 00000 111111 00000. -INF: 11111 111111 00000 
-    
-        // 2) NaN: frac != 0000~ / +NaN: 00000 111111 10000. -Nan : 11111 ~~
-        else return fsign == 0 ? 0x07f0 : 0xfff0;    
-    
-        // 3) +0, -0 & denorm
-        // -> denorm의 frac이 all 1이어도 fexp = 0 -> e = -126이다. 절대 fp12로 못나타냄 
-        // -> e < -30 이어도 0 돼야 함.
-    } else if (e < -30) 
+    int e = fexp -127;
+
+    // 1) +0, -0 : fexp = 0000 0000
+    // -> fp denorm은 무조건 0으로 변환된다. 
+    // -> e <= -37도 무조건 0으로 변환된다. -36 <= e <= -31 은 fp normal -> fp12 denormal이라서 따로 다룸
+    // -> 이 범위에 fexp == 0도 다 포함됨.
+    if (e <= -37)
         return fsign == 0 ? 0 : 0xf800;
-*/ 
-// looking better
-    // 1) INF : fexp = 1111 1111, frac = 0
-    if (fexp == 0xff && fracMSB7 == 0 && lower == 0)
+
+
+    // 2) INF : fexp = 1111 1111, frac = 0
+    if (fexp == 0xff && wholefrac == 0)
         return fsign == 0 ? 0x07e0 : 0xffe0;
      
-    // 2) Nan : fexp = 1111 1111, frac != 0
-    if (fexp == 0xff && (fracMSB7 != 0 || lower != 0))
+    // 3) Nan : fexp = 1111 1111, frac != 0
+    if (fexp == 0xff && (wholefrac != 0))
         return fsign == 0 ? 0x07f1 : 0xfff1;
  
-    // 3) NaN까지 다 한 후에 exp > 158 인 것들 마저 걸러낸다. (그 전에 하면 nan까지 inf로 됨)
+    // 3) Rounding 전부터 크기가 너무 커서 INF가 명백한 수 거르기
+    // -> NaN까지 다 한 후에 e > 31 인 것들 마저 걸러낸다. (그 전에 하면 nan까지 inf로 됨)
     // -> fp12 Max: e=31. fexp = e + 127. fexp Max: 158. ==> 158 < fexp 는 INF이다
-//    if (fexp > 158) return fsign == 0 ? 0x07e0 : 0xffe0;
+    if (e > 31) return fsign == 0 ? 0x07e0 : 0xffe0;
 
-    // 4) +0, -0 : fexp = 0000 0000, frac = 0
-    // 일단 0부터 하자. denorm은 rounding 다 끝나고 판단.
-    if (fexp == 0 && fracMSB7 == 0 && lower == 0)
-        return fsign == 0 ? 0 : 0xf800;
-
+    
+//
+//2. 1) fp norm -> fp12 norm (e >= -30): 원래 짜던대로 진행
+//   2) fp norm -> fp12 denorm (1.00.....01 * 2^-36 ~ 1.11....11 * 2^-31) : special check is needed 
 
 
 
@@ -374,38 +350,41 @@ fp12 float_fp12(float f)
 //
     // 1) RS == 11 check
     // lower에 1이 있으면 R만 1이어도 됨. 없으면 RS 다 1이어야 함.
-    bool RS;
-    unsigned short rs = 0xffff; 
-    // TODO : bit shift는 int로 변환시켜서 진행한다. 그래서 계속 여기서 문제가 생겼던거였어....
-    if (lower > 0) RS = (unsigned short)((rs & fracMSB7) << 14) >= 0x8000 ? true : false;
-    else RS = (unsigned short)((rs & fracMSB7) << 14) >= 0xc000 ? true : false; 
+    
+    unsigned int rs = wholefrac << 5;
+    bool RS = rs > 0x80000000 ? true : false;
+    
+    //TODO : delete
+    printf("rs: %x ", rs);
+
 
 // TODO : delete
 //    printf("<<한거: %x ", (rs&fracMSB7) <<13);
 
     // 2) LR == 11 check
-    unsigned short lr = 0xffff;
-    bool LR = (unsigned short)((lr & fracMSB7) << 13) >= 0xc000 ? true : false;
-    
+   
+    unsigned int lr = wholefrac << 4;
+    bool LR = lr >= 0xc0000000 ? true : false;
+
     //TODO : delete
 // printf("RS: %d, LR: %d , frac7: %x ",RS, LR, fracMSB7);
 
     // 3) truncate 후 LRS 조건에 맞는 것만 +1
-    unsigned short frac = fracMSB7 >> 2; // fracMSB7 = xxxxLRS 니까 RS 날림. >>1한게 문제엿어...ㅅㅂ
+    unsigned short frac = wholefrac >> 27; // fracMSB7 = xxxxLRS 니까 RS 날림. >>1한게 문제엿어...ㅅㅂ
     if (RS || LR) frac += 1; 
    // TODO : delete
-   // printf("bfr e: %d, frac: %x ", e, frac);
+    printf("bfr e: %d, wholefrac: %x frac: %x ", e, wholefrac, frac);
 
 //
 // 3. Renormalization : frac이 정상이라면 100000 보다 작음 
 // TODO : check -> BUT!!! 0.11111 * 2^-30 의 경우에는 +1 돼도 1.00000 * 2^-30이다. ㄴㄴ 애초에 float에서 저 형태가 못나옴
-    if ((unsigned short)frac >= 0x20) {
+    if ((unsigned short)frac >= 0x0020) {
         /*if (e == -30) frac = 0; 
         else {*/ e ++;   frac = 0;}
     
 
 //TODO : delete
-// printf("aft e: %d ", e);
+ printf("aft e: %d ", e);
 
 
 //
