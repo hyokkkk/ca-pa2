@@ -316,6 +316,10 @@ fp12 float_fp12(float f)
 //
     // 원래 지수 
     int e = fexp -127;
+    
+    //TODO : delete
+//    printf("brf e: %d \n", e);
+
 
     // 1) +0, -0 : fexp = 0000 0000
     // -> fp denorm은 무조건 0으로 변환된다. 
@@ -338,15 +342,26 @@ fp12 float_fp12(float f)
     // -> fp12 Max: e=31. fexp = e + 127. fexp Max: 158. ==> 158 < fexp 는 INF이다
     if (e > 31) return fsign == 0 ? 0x07e0 : 0xffe0;
 
-    
+// TODO : delete
+// printf("bfr wholefrac: %x ", wholefrac);
+
+
 //
 //2. 1) fp norm -> fp12 norm (e >= -30): 원래 짜던대로 진행
 //   2) fp norm -> fp12 denorm (1.00.....01 * 2^-36 ~ 1.11....11 * 2^-31) : special check is needed 
+    bool denormflag = (-36 <= e && e <= -31) ? true : false; // 나중에 exp encoding, e== -31에서 rounding될 때 사용.
+    if (denormflag) {
+        wholefrac >>= 1; // denorm으로 만들기 위해 정수부에 있는 1을 frac부분에 넣는 과정.
+        wholefrac |= 0x80000000;
+        wholefrac >>= -30-e-1;
+        e = -30; // denorm으로 만들어야하니 e==-30으로 통일시킴
+    }
 
-
+    // TODO : delete
+    printf("bool: %d , boolwholefrac: %x ", denormflag, wholefrac);
 
 //
-// 2. Rounding : LRS = 011, 111, 110 일 때만 +1하고 나머지는 truncate한다.
+// 3. Rounding : LRS = 011, 111, 110 일 때만 +1하고 나머지는 truncate한다.
 //
     // 1) RS == 11 check
     // lower에 1이 있으면 R만 1이어도 됨. 없으면 RS 다 1이어야 함.
@@ -355,7 +370,7 @@ fp12 float_fp12(float f)
     bool RS = rs > 0x80000000 ? true : false;
     
     //TODO : delete
-    printf("rs: %x ", rs);
+   // printf("rs: %x ", rs);
 
 
 // TODO : delete
@@ -373,22 +388,25 @@ fp12 float_fp12(float f)
     unsigned short frac = wholefrac >> 27; // fracMSB7 = xxxxLRS 니까 RS 날림. >>1한게 문제엿어...ㅅㅂ
     if (RS || LR) frac += 1; 
    // TODO : delete
-    printf("bfr e: %d, wholefrac: %x frac: %x ", e, wholefrac, frac);
+    printf("wholefrac: %x frac: %x ", wholefrac, frac);
 
 //
 // 3. Renormalization : frac이 정상이라면 100000 보다 작음 
-// TODO : check -> BUT!!! 0.11111 * 2^-30 의 경우에는 +1 돼도 1.00000 * 2^-30이다. ㄴㄴ 애초에 float에서 저 형태가 못나옴
+//
     if ((unsigned short)frac >= 0x0020) {
-        /*if (e == -30) frac = 0; 
-        else {*/ e ++;   frac = 0;}
+        frac = 0;
+        //denorm 켜진 상태에서 frac == 100000 된 거는 1.00000 * 2^-30 된거임
+        if (denormflag == true) denormflag = false; // exp encoding 위해 flag 끔. 
+        else e++;
+    }
     
 
 //TODO : delete
- printf("aft e: %d ", e);
+printf("aft e: %d \n", e);
 
 
 //
-// 3-1. special case
+// 3-1. special case after rounding 
 //
     // 1) fp12 Max = 00000 111110 11111 = 1.11111 * 2^31
     // +INF = 00000 111111 00000 = 0x07e0;
@@ -397,7 +415,7 @@ fp12 float_fp12(float f)
 
     // 2) denorm의 frac이 all 1이어도 fexp = 0 -> e = -126이다. 절대 fp12로 못나타냄 
     // -> e < -35 이어도 0 돼야 함. 
-    if (e < -35)     return fsign == 0 ? 0 : 0xf800;
+//    if (e < -35)     return fsign == 0 ? 0 : 0xf800;
   
 
 
@@ -408,10 +426,18 @@ fp12 float_fp12(float f)
     fp12 exp = 0;
     fp12 sign = fsign == 0 ? 0 : 0xf800; // 음수면 11111 000000 00000;
 
+    // 1) exp
+    // -> denorm 아닌 경우는 e + BIAS
+    // -> denorm 인 경우는 0
+    if (!denormflag) exp = (e + BIAS) << 5;
+
+
     // 1) fp12가 normalized form 으로 표현되는 경우.
     // TODO : 여기 고쳐야함!!!! e= -30일 때 왜 노말로 해놨어.... 디노말도 -30일 때 있잖아....
     // 일단 e는 normal로 가정? ㅇㅇ 디노말로 표현되는 건 2)밖에 없음.
-    if (-30 <= e && e < 32)     exp = (e + BIAS) << 5; 
+//    if (-30 <= e && e < 32)     exp = (e + BIAS) << 5; 
+
+
 
     // 2) float normal중 rounding 후에 fp12 denormal로 표현되는 수가 있다. 
     // -> 1.00000 * 2^-35 == 0.00001 * 2^-30;
@@ -420,10 +446,10 @@ fp12 float_fp12(float f)
     // -> 1.xxx00   2^-32 == 0.01xxx * 2^-30;
     // -> 1.xxxx0   2^-31 == 0.1xxxx * 2^-30;
     //      denorm 이니까 exp=0인 상태로 놔둠.
-    if (-35 <= e && e <= -31) {
-        frac |= 0x20;
-        frac >>= -30 -e;
-    }
+//    if (-35 <= e && e <= -31) {
+  //      frac |= 0x20;
+    //    frac >>= -30 -e;
+    //}
 
 
 
