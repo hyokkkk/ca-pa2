@@ -18,7 +18,6 @@
 #define BIAS 31
 
 typedef enum {false, true} bool; //#include <stdbool.h> 해야하지만 여기선 사용불가하므로.
-
 /********* How to normalize *********/
 
 // 0. MSB로 sign 받아놓음.
@@ -60,52 +59,38 @@ fp12 int_fp12(int n)
 //
 // 0. sign 받아놓기
 //
-    unsigned short int sign = n < 0 ? 0xf800 : 0; // -: 1111 1000 0000 0000, 0 & +: 00000000 00000000
-    unsigned int un= n < 0 ? (unsigned int) ~n+1 : n; //음수면 양수로 바꿈. -2147483648같은 경계값은 -붙여도 자기 자신임. 
-
-    //이렇게 쓰면 MSB를 sign이 아닌 그냥 숫자로 읽어서 -101이 101이 되는 게 아니라 엄청 큰 수로 인식됨.
-    //unsigned int un =(unsigned int)n ;
-
+    unsigned short sign = n < 0 ? 0xf800 : 0; // -: 1111 1000 0000 0000, 0 & +: 00000000 00000000
+    unsigned int un= n < 0 ? (unsigned int) ~n+1 : n; //음수면 양수로 바꿈. -2147483648같은 경계값은 -붙여도 자기 자신이라 ~n+1을 -n으로 퉁칠 수가 없음. 
 
 //
 // 1. Normalizing & E 구하기
 //
     int cnt = 0;
-    
-    // un의 MSB == 1일 때까지 shift
-    while (un < (unsigned int)0x80000000){ un<<=1; cnt++; } 
-    
+    while (un < (unsigned int)0x80000000){ un<<=1; cnt++; } // un의 MSB == 1일 때까지 shift
     int e = 31 - cnt;
-
-
 
 //
 // 2. Rounding : LRS = 011, 111, 110 일 때만 +1하고 나머지는 truncate한다. (2점)
 //
     // 1) RS == 11 check
-    unsigned int rs = 0xffffffff; // int 1bit + frac 5 bit -> 11111L|R111111111...
     // RS == 11이려면, R==1, S이하에는 하나의 1만 있으면 됨.
-    // rs & un 한 게 Ixxxxx10 00000000 00000000 00000001 이상이면 s==1 이라는 의미다. 
-    // --> (rs & un) << 6 한 게 10000000 00000000 00000000 01000000 이상이면 됨.
-    bool RS = (rs & un) <<6 >= 0x80000040 ? true : false;
-    
+    // un이 Ixxxxx10 00000000 00000000 00000001 이상이면 s==1 이라는 의미다. 
+    // --> un << 6 한 게 10000000 00000000 00000000 01000000 이상이면 됨.
+    bool RS = un <<6 >= 0x80000040 ? true : false;
 
     // 2) LR == 11 check
-    unsigned int lr = 0xffffffff; // int 1bit + frac 5bit 중 LSB니까 5bit shift
-    // lr & un 한 게 Ixxxx11x xxxxxx이면 s에 상관 없이 LR == 11임.
-    // --> (lr & un) << 5 한 게 11000000 00000000 0~ 0~ 이상이면 됨.
-    bool LR = (lr & un) << 5 >= 0xc0000000 ? true : false;
+    // un이 Ixxxx11x xxxxxx이면 s에 상관 없이 LR == 11임.
+    // --> un << 5 한 게 11000000 00000000 0~ 0~ 이상이면 됨.
+    bool LR = un << 5 >= 0xc0000000 ? true : false;
     
-
     // 3) truncate 후 LRS 조건에 맞는 것만 +1
     un >>= 32-6; // int 1bit + frac 5bit = 6bit만 남게 shift 
     if (RS || LR) un += 1; 
 
-
+//
 // 3. Renormalization 
 // -> 정상이라면 1xxxxx처럼 6bit 숫자임. but 10.00000처럼 7bit로 넘어가는 경우도 있다.
 // -> 01000000 이상이면 >>1 하고 e += 1;
-    
     if (un >= 0x40) {
         un >>= 1;
         e += 1;
@@ -116,14 +101,13 @@ fp12 int_fp12(int n)
 // -> 라운딩 후 fp12로 나타낼 수 있는 범위를 넘어가는 int는 부호에 따라 +INF, -INF 로 나타냄
 
     // fp12 Max = 00000 111110 11111 = 1.11111 * 2^31
-    // +INF = 00000 111111 00000 = 0x07e0;
-    // -INF = 11111 111111 00000 = 0xffe0;
+    // +INF = 00000 111111 00000 = 0x07e0; -INF = 11111 111111 00000 = 0xffe0;
     if (e == 32){
        if (sign == 0xf800) return 0xffe0;
        else if (sign == 0) return 0x07e0;
     }
 
-
+//
 // 4. Encoding
 // -> sign, exp, frac을 애초에 16bit로 extend해서 선언해놓고 result에 넣을 때 shift 없이 OR만 한다.
  
@@ -146,13 +130,7 @@ fp12 int_fp12(int n)
 
 
 
-
-
-
-
-
 /*--------------- Convert 12-bit floating point to 32-bit signed integer ------------------*/
-
 
 int fp12_int(fp12 x)
 {
@@ -194,8 +172,6 @@ int fp12_int(fp12 x)
     if (0 < e-5 && e-5 <= 32) unsignedResult |= (mantissa <<= (e-5));
     else if (0 <= 5-e && 5-e <= 32) unsignedResult |= (mantissa >>= (5-e));
     
-
-
 //
 // 2. Range overflow check
 //    fp12가 의미하는 값이 int의 범위를 넘어서면 0x80000000 으로 표현. (4점)
@@ -214,7 +190,6 @@ int fp12_int(fp12 x)
         if ((unsigned int)unsignedResult > (unsigned int)0x80000000) return 0x80000000;
     }
 
-
 //
 // 3. result : +면 그대로, -면 2's complement 해서 내보냄
 //
@@ -224,10 +199,6 @@ int fp12_int(fp12 x)
     return result;
     
 }
-
-
-
-
 
 
 
@@ -250,7 +221,7 @@ int fp12_int(fp12 x)
 //
 
 typedef struct {
-    unsigned short lower; //stack에 쌓이니까 lower먼저 선언해줘야 뒷부분이 lower에 할당됨
+    unsigned short lower; //little endian 이라서 lower먼저 선언해줘야 뒷부분이 lower에 할당됨
     unsigned short upper;
 } Struct;
 
@@ -270,7 +241,7 @@ fp12 float_fp12(float f)
     Union uni;
     uni.input = f;
     
-    // 1) float sign : +0, -0도 커버된다. NaN 부호 못받아서 -2였음.
+    // 1) float sign : +0, -0도 커버된다. 단순히 float 입력값을 0을 기준으로 비교하면 NaN 은 숫자가 아니라 비교가 안 됨. -2점이었음.
     char fsign = uni.wholefrac < 0x80000000 ? 0 : 1;
 
     // 2) exp : uni.twoshort.upper 값 읽어와서 필요한 부분만 추출
@@ -279,8 +250,6 @@ fp12 float_fp12(float f)
 
     // 3) frac : upper lsb 7bit + lower 16bit.
     unsigned int wholefrac = uni.wholefrac << 9; // 32bit에 전체 frac을 담아 앞에서부터 채움.
-
-
     
 //
 // 1. special forms : INF, NaN, 0
@@ -295,7 +264,6 @@ fp12 float_fp12(float f)
     if (e <= -37)
         return fsign == 0 ? 0 : 0xf800;
 
-
     // 2) INF : fexp = 1111 1111, frac = 0
     if (fexp == 0xff && wholefrac == 0)
         return fsign == 0 ? 0x07e0 : 0xffe0;
@@ -305,11 +273,9 @@ fp12 float_fp12(float f)
         return fsign == 0 ? 0x07f1 : 0xfff1;
  
     // 3) Rounding 전부터 크기가 너무 커서 INF가 명백한 수 거르기
-    // -> NaN까지 다 한 후에 e > 31 인 것들 마저 걸러낸다. (그 전에 하면 nan까지 inf로 됨)
+    // -> NaN까지 다 한 후에 e > 31 인 것들 마저 걸러낸다. (그 전에 하면 nan까지 inf로 처리됨)
     // -> fp12 Max: e=31. fexp = e + 127. fexp Max: 158. ==> 158 < fexp 는 INF이다
     if (e > 31) return fsign == 0 ? 0x07e0 : 0xffe0;
-
-
 
 //
 //2. 1) fp norm -> fp12 norm (e >= -30): 원래 짜던대로 진행
@@ -321,8 +287,6 @@ fp12 float_fp12(float f)
         wholefrac >>= -30-e-1;
         e = -30; // denorm으로 만들어야하니 e==-30으로 통일시킴
     }
-
-
 
 //
 // 3. Rounding : LRS = 011, 111, 110 일 때만 +1하고 나머지는 truncate한다.
@@ -337,10 +301,8 @@ fp12 float_fp12(float f)
     bool LR = lr >= 0xc0000000 ? true : false;
 
     // 3) truncate 후 LRS 조건에 맞는 것만 +1
-    unsigned short frac = wholefrac >> 27; // fracMSB7 = xxxxLRS 니까 RS 날림. >>1한게 문제엿어...ㅅㅂ
+    unsigned short frac = wholefrac >> 27;
     if (RS || LR) frac += 1; 
-
-
 
 //
 // 4. Renormalization : frac이 정상이라면 100000 보다 작음 
@@ -350,24 +312,18 @@ fp12 float_fp12(float f)
         //denorm 켜진 상태에서 frac == 100000 된 거는 1.00000 * 2^-30 된거임
         if (denormflag == true) denormflag = false; // exp encoding 위해 flag 끔. 
         else e++;
-    }
-    
-
+    }    
 
 //
-// 3-1. special case after rounding 
+// 4-1. special case after rounding 
 //
-    // 1) fp12 Max = 00000 111110 11111 = 1.11111 * 2^31
-    // +INF = 00000 111111 00000 = 0x07e0;
-    // -INF = 11111 111111 00000 = 0xffe0;
+    // fp12 Max = 00000 111110 11111 = 1.11111 * 2^31
+    // +INF = 00000 111111 00000 = 0x07e0; -INF = 11111 111111 00000 = 0xffe0;
     if (e >= 32)    return fsign == 1 ? 0xffe0 : 0x07e0;
 
-
-
 //
-// 4. encoding (2점 오름 ㅠㅠㅠㅠㅠ 나머지는 어디가 문제인거냐)
+// 5. encoding
 //
- 
     fp12 exp = 0;
     fp12 sign = fsign == 0 ? 0 : 0xf800; // 음수면 11111 000000 00000;
 
@@ -376,20 +332,12 @@ fp12 float_fp12(float f)
     // -> denorm 인 경우는 0
     if (!denormflag) exp = (e + BIAS) << 5;
 
-
     fp12 result = 0;
     result |= (sign | exp | frac);  
 
     return result;
 
 }
-
-
-
-
-
-
-
 
 
 
@@ -417,12 +365,9 @@ float fp12_float(fp12 x)
     fp12 fpFrac = x << 11;
     fpFrac >>= 11;
 
-
-
 //
 // 1. INF, NaN, 0
 //
-
     // 1) INF : exp == 111111, frac == 00000
     if (fpExp == 0x3f && fpFrac == 0)
        return fpSign == 0 ? 1/0.0 : -1/0.0;
@@ -435,7 +380,6 @@ float fp12_float(fp12 x)
     if (fpExp==0 && fpFrac ==0) 
         return fpSign == 0 ? 0.0 : -0.0;
     
-
 //
 // 2. General case
 // -> float는 bitwise operation이 안 된다. bit에 바로 때려넣는 거 불가.
@@ -445,9 +389,6 @@ float fp12_float(fp12 x)
     // 2) 실제 지수 구하기 : normal, denormal 따로.
     int e = fpExp == 0 ? 1-BIAS : fpExp - BIAS;
 
-    // TODO : delete
-//    printf("\nfsign: %x, fexp: %x, e: %d, ffrac: %x ", fpSign, fpExp, e, fpFrac);
-
     // 3) mantissa 구하기 : frac 값 + 1
     // -> fp12 frac : 5bit. bit의 값에 /32 하면 실제 frac의 값이 나온다.
     float mantissa = fpExp == 0 ? fpFrac/32.0f: 1+fpFrac/32.0f;
@@ -456,9 +397,6 @@ float fp12_float(fp12 x)
     int twoPowE = 1;
     twoPowE = e >= 0 ? twoPowE << e : twoPowE << -e; // e >= 0
  
-    // TODO : delete
-//    printf("2^e: %x\n ", twoPowE);
-
     float twoPowNegE = 1.0f/twoPowE;
 
     float unsigned_result = e >= 0 ? mantissa * twoPowE : mantissa * twoPowNegE;
@@ -469,8 +407,6 @@ float fp12_float(fp12 x)
     if (e == 31) return -unsigned_result;
 
     float result = fpSign == 0 ? unsigned_result : -unsigned_result;
-
     return result;
-
 
 }
