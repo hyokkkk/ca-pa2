@@ -295,7 +295,6 @@ fp12 float_fp12(float f)
 // 3. Rounding : LRS = 011, 111, 110 일 때만 +1하고 나머지는 truncate한다.
 //
     // 1) RS == 11 check
-    // lower에 1이 있으면 R만 1이어도 됨. 없으면 RS 다 1이어야 함.
     unsigned int rs = wholefrac << 5;
     bool RS = rs > 0x80000000 ? true : false;
 
