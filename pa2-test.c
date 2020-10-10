@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <time.h>
 #include <sys/types.h>
 
 #define RED   "\033[0;31m"
@@ -168,5 +169,18 @@ int main(void)
 	}
 
 	printf("\n");
+
+	printf("\n%sBenchmark: Running float_fp12 for 2^28 times%s\n", CYAN, RESET);
+	struct timespec begin, end;
+	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &begin);
+	for (int i = 0; i < (1<<28); ++i) {
+		// Worst case input
+		float_fp12(0.000000000916770714898262895076186396181583404541015625);
+	}
+	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &end);
+	double elapsed =
+		(double)(end.tv_sec - begin.tv_sec) * 1000.0 +
+		(double)(end.tv_nsec - begin.tv_nsec) / 1000000.0;
+	printf("%lfms\n", elapsed);
 	return 0;
 }
