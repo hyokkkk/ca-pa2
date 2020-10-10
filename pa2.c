@@ -251,20 +251,19 @@ fp12 float_fp12(float f)
         return fsign ? 0xf800 : 0x0000;
     }
 
-    if (fexp == 0xff) {
-        // fexp == 1111 1111
-        // Nan : frac != 0, INF : frac == 0
-        if (ffrac) {
-            return fsign ? FP12_NEG_NAN : FP12_NAN;
-        } else {
-            return fsign ? FP12_NEG_INF : FP12_INF;
-        }
-    }
-
     // 4) Rounding 전부터 크기가 너무 커서 INF가 명백한 수 거르기
     // -> NaN까지 다 한 후에 e > 31 인 것들 마저 걸러낸다. (그 전에 하면 nan까지 inf로 처리됨)
     // -> fp12 Max: e=31. fexp = e + 127. fexp Max: 158. ==> 158 < fexp 는 INF이다
     if (fexp > 127+31) {
+        if (fexp == 0xff) {
+            // fexp == 1111 1111
+            // Nan : frac != 0, INF : frac == 0
+            if (ffrac) {
+                return fsign ? FP12_NEG_NAN : FP12_NAN;
+            } else {
+                return fsign ? FP12_NEG_INF : FP12_INF;
+            }
+        }
         return fsign ? FP12_NEG_INF : FP12_INF;
     }
 
