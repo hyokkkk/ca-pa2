@@ -224,16 +224,10 @@ int fp12_int(fp12 x)
 // 이렇게 메모리를 공유하도록 Union을 만든다.
 //
 
-typedef struct {
-    unsigned short lower; //little endian 이라서 lower먼저 선언해줘야 뒷부분이 lower에 할당됨
-    unsigned short upper;
-} Struct;
-
-typedef union {
+union float32 {
     float input;
     unsigned int wholefrac;
-    Struct twoShort;
-} Union;
+};
 
 // TODO : 이것이 핵심임!
 // float norm -> fp12 denorm 경곗값 : 1.frac(!=0) * 2^-36
@@ -245,15 +239,14 @@ fp12 float_fp12(float f)
 // 0. float's sign, exp, frac extraction
 //
     // 0) input float 값을 공용체 전체공간에 저장
-    Union uni;
+    union float32 uni;
     uni.input = f;
 
     // 1) float sign : +0, -0도 커버된다. 단순히 float 입력값을 0을 기준으로 비교하면 NaN 은 숫자가 아니라 비교가 안 됨. -2점이었음.
-    char fsign = uni.wholefrac < 0x80000000 ? 0 : 1;
+    bool fsign = uni.wholefrac >= 0x80000000;
 
     // 2) exp : uni.twoshort.upper 값 읽어와서 필요한 부분만 추출
-    unsigned short fexp = uni.twoShort.upper << 1; // remove sign bit
-    fexp >>= 8; // remove frac bits
+    unsigned short fexp = (uni.wholefrac >> 23) & 0xff;
 
     // 3) frac
     unsigned int wholefrac = uni.wholefrac << 9; // 32bit에 전체 frac을 담아 앞에서부터 채움.
@@ -262,27 +255,29 @@ fp12 float_fp12(float f)
 // 1. special forms : INF, NaN, 0
 //
     // 원래 지수
-    int e = fexp -127;
+    short e = fexp - 127;
 
     // 1) +0, -0 : fexp = 0000 0000
     // -> fp denorm은 무조건 0으로 변환된다.
     // -> e <= -37도 무조건 0으로 변환된다. -36 <= e <= -31 은 fp normal -> fp12 denormal이라서 따로 다룸
     // -> 이 범위에 fexp == 0도 다 포함됨.
-    if (e <= -37)
-        return fsign == 0 ? 0 : 0xf800;
-
+    if (e <= -37) {
+        return fsign ? 0xf800 : 0x0000;
+    }
     // 2) INF : fexp = 1111 1111, frac = 0
-    if (unlikely(fexp == 0xff && wholefrac == 0))
-        return fsign == 0 ? 0x07e0 : 0xffe0;
-
+    if (unlikely(fexp == 0xff && wholefrac == 0)) {
+        return fsign ? 0xffe0 : 0x07e0;
+    }
     // 3) Nan : fexp = 1111 1111, frac != 0
-    if (unlikely(fexp == 0xff && (wholefrac != 0)))
-        return fsign == 0 ? 0x07f1 : 0xfff1;
-
+    if (unlikely(fexp == 0xff && (wholefrac != 0))) {
+        return fsign ? 0xfff1 : 0x07f1;
+    }
     // 3) Rounding 전부터 크기가 너무 커서 INF가 명백한 수 거르기
     // -> NaN까지 다 한 후에 e > 31 인 것들 마저 걸러낸다. (그 전에 하면 nan까지 inf로 처리됨)
     // -> fp12 Max: e=31. fexp = e + 127. fexp Max: 158. ==> 158 < fexp 는 INF이다
-    if (e > 31) return fsign == 0 ? 0x07e0 : 0xffe0;
+    if (e > 31) {
+        return fsign ? 0xffe0 : 0x07e0;
+    }
 
 //
 //2. 1) fp norm -> fp12 norm (e >= -30): 원래 짜던대로 진행
@@ -299,12 +294,10 @@ fp12 float_fp12(float f)
 // 3. Rounding : LRS = 011, 111, 110 일 때만 +1하고 나머지는 truncate한다.
 //
     // 1) RS == 11 check
-    unsigned int rs = wholefrac << 5;
-    bool RS = rs > 0x80000000 ? true : false;
+    const bool RS = (wholefrac << 5) > 0x80000000 ? true : false;
 
     // 2) LR == 11 check
-    unsigned int lr = wholefrac << 4;
-    bool LR = lr >= 0xc0000000 ? true : false;
+    const bool LR = (wholefrac << 4) >= 0xc0000000 ? true : false;
 
     // 3) truncate 후 LRS 조건에 맞는 것만 +1
     unsigned short frac = wholefrac >> 27;
@@ -325,24 +318,21 @@ fp12 float_fp12(float f)
 //
     // fp12 Max = 00000 111110 11111 = 1.11111 * 2^31
     // +INF = 00000 111111 00000 = 0x07e0; -INF = 11111 111111 00000 = 0xffe0;
-    if (unlikely(e >= 32))    return fsign == 1 ? 0xffe0 : 0x07e0;
+    if (unlikely(e >= 32)) {
+        return fsign ? 0xffe0 : 0x07e0;
+    }
 
 //
 // 5. encoding
 //
-    fp12 exp = 0;
-    fp12 sign = fsign == 0 ? 0 : 0xf800; // 음수면 11111 000000 00000;
+    const fp12 sign = fsign ? 0xf800 : 0; // 음수면 11111 000000 00000;
 
     // 1) exp
-    // -> denorm 아닌 경우는 e + BIAS
     // -> denorm 인 경우는 0
-    if (!denormflag) exp = (e + BIAS) << 5;
+    // -> denorm 아닌 경우는 e + BIAS
+    const fp12 exp = denormflag ? 0 : (e + BIAS) << 5;
 
-    fp12 result = 0;
-    result |= (sign | exp | frac);
-
-    return result;
-
+    return sign | exp | frac;
 }
 
 
