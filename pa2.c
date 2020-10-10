@@ -295,8 +295,11 @@ fp12 float_fp12(float f)
     if ((unsigned short)frac >= 0x0020) {
         frac = 0;
         //denorm 켜진 상태에서 frac == 100000 된 거는 1.00000 * 2^-30 된거임
-        if (unlikely(denormflag == true)) denormflag = false; // exp encoding 위해 flag 끔.
-        else e++;
+        if (unlikely(denormflag)) {
+            denormflag = false; // exp encoding 위해 flag 끔.
+        } else {
+            ++e;
+        }
     }
 
 //
