@@ -301,11 +301,8 @@ fp12 float_fp12(float f)
     if (frac == 0b100000) {
         frac = 0;
         // denorm 켜진 상태에서 frac == 0b100000 된 거는 1.00000 * 2^-30 된거임
-        if (denormflag) {
-            denormflag = false; // exp encoding 위해 flag 끔.
-        } else {
-            ++fexp;
-        }
+        if (!denormflag) { ++fexp; }
+        denormflag = false; // exp encoding 위해 flag 끔.
     }
 
 //
