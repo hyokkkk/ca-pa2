@@ -271,25 +271,35 @@ fp12 float_fp12(float f)
 //   2) fp norm -> fp12 denorm (1.00.....01 * 2^-36 ~ 1.11....11 * 2^-31) : special check is needed
     bool denormflag = fexp <= 127-31; // 나중에 exp encoding, e== -31에서 rounding될 때 사용.
 
-    unsigned int wholefrac;
+    unsigned short frac;
+
     if (denormflag) {
         // denorm으로 만들기 위해 정수부에 있는 1을 frac부분에 넣는 과정.
-        wholefrac = ((ffrac << 8) | 0x80000000) >> (-31-(fexp-127));
+        const unsigned int wholefrac = ((ffrac << 8) | 0x80000000) >> (-31-(fexp-127));
+        frac = wholefrac >> 27;
+
         fexp = 127-30; // denorm으로 만들어야하니 e==-30으로 통일시킴
-    } else {
-        wholefrac = ffrac << 9;
-    }
 
 //
 // 3. Rounding : LRS = 011, 111, 110 일 때만 +1하고 나머지는 truncate한다.
 //
-    //                                      ....LRSSSSSSSSSSSSSSSSS.........
-    const unsigned int R =    wholefrac & 0b00000100000000000000000000000000;
-    const unsigned int LorS = wholefrac & 0b00001011111111111111111111111111;
+        //                                      ....LRSSSSSSSSSSSSSSSSS.........
+        const unsigned int R =    wholefrac & 0b00000100000000000000000000000000;
+        const unsigned int LorS = wholefrac & 0b00001011111111111111111111111111;
 
-    // truncate 후 LRS 조건에 맞는 것만 +1
-    unsigned short frac = wholefrac >> 27;
-    if (R && LorS) { ++frac; }
+        // truncate 후 LRS 조건에 맞는 것만 +1
+        if (R && LorS) { ++frac; }
+    } else {
+        frac = ffrac >> 18;
+
+        //                                  .............LRSSSSSSSSSSSSSSSSS
+        const unsigned int R =    ffrac & 0b00000000000000100000000000000000;
+        const unsigned int LorS = ffrac & 0b00000000000001011111111111111111;
+
+        // truncate 후 LRS 조건에 맞는 것만 +1
+        if (R && LorS) { ++frac; }
+    }
+
 
 //
 // 4. Renormalization : frac이 정상이라면 100000 보다 작음
