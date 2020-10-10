@@ -274,8 +274,12 @@ fp12 float_fp12(float f)
     unsigned short frac;
 
     if (denormflag) {
+        // invariant: 91 <= fexp <= 96
+        // 3 <= 9 + 30 + fexp - 127 <= 8
+
         // denorm으로 만들기 위해 정수부에 있는 1을 frac부분에 넣는 과정.
-        const unsigned int wholefrac = ((ffrac << 8) | 0x80000000) >> (-31-(fexp-127));
+        const unsigned int wholefrac = ((ffrac | 0x00800000) << (9 + 30 + fexp - 127));
+
         frac = wholefrac >> 27;
 
         fexp = 127-30; // denorm으로 만들어야하니 e==-30으로 통일시킴
@@ -283,9 +287,9 @@ fp12 float_fp12(float f)
 //
 // 3. Rounding : LRS = 011, 111, 110 일 때만 +1하고 나머지는 truncate한다.
 //
-        //                                      ....LRSSSSSSSSSSSSSSSSS.........
+        //                                      ....LRSSSSSSSSSSSSSSSSSSSSSSS...
         const unsigned int R =    wholefrac & 0b00000100000000000000000000000000;
-        const unsigned int LorS = wholefrac & 0b00001011111111111111111111111111;
+        const unsigned int LorS = wholefrac & 0b00001011111111111111111111111000;
 
         // truncate 후 LRS 조건에 맞는 것만 +1
         if (R && LorS) { ++frac; }
