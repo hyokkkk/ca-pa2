@@ -17,13 +17,20 @@
 TARGET	= pa2
 SRCS	= pa2.c pa2-test.c
 CC	= gcc
-CFLAGS	= -g -O2 -Wall -Wextra -Wpedantic
+CFLAGS	= -pg -g -O2 -Wall -Wextra -Wpedantic
+LDFLAGS = -pg
 OBJS	= $(SRCS:.c=.o)
 
 all: $(TARGET)
 
 $(TARGET): $(OBJS)
-	$(CC) -o $@ $^
+	$(CC) $(LDFLAGS) -o $@ $^
 
+.PHONY: clean
 clean:
 	$(RM) $(TARGET) $(OBJS)
+
+.PHONY: bench
+bench: $(TARGET)
+	./pa2
+	gprof -l ./pa2
