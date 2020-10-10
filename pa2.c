@@ -319,8 +319,13 @@ fp12 float_fp12(float f)
     }
 
     const fp12 sign = fsign ? 0xf800 : 0; // 음수면 11111 000000 00000;
-    const fp12 exp = denormflag ? 0 : (fexp - 127 + BIAS) << 5;
-    return sign | exp | frac;
+
+    if (denormflag) {
+        return sign | frac;
+    } else {
+        const fp12 exp = (fexp - 127 + BIAS) << 5;
+        return sign | exp | frac;
+    }
 }
 
 
