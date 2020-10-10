@@ -1,0 +1,2 @@
+#!/bin/bash
+powershell.exe Get-Clipboard | python3 helper.py | clip.exe
