@@ -249,14 +249,18 @@ fp12 float_fp12(float f)
         return fsign ? 0xf800 : 0x0000;
     }
 
-    // 2) INF : fexp = 1111 1111, frac = 0
-    // 3) Nan : fexp = 1111 1111, frac != 0
     if (unlikely(fexp == 0xff)) {
-        if (wholefrac == 0) { return fsign ? 0xffe0 : 0x07e0; }
-        else { return fsign ? 0xfff1 : 0x07f1;}
+        // fexp == 1111 1111
+        // 2) Nan : frac != 0
+        // 3) INF : frac == 0
+        if (wholefrac) {
+            return fsign ? 0xfff1 : 0x07f1;
+        } else {
+            return fsign ? 0xffe0 : 0x07e0;
+        }
     }
 
-    // 3) Rounding 전부터 크기가 너무 커서 INF가 명백한 수 거르기
+    // 4) Rounding 전부터 크기가 너무 커서 INF가 명백한 수 거르기
     // -> NaN까지 다 한 후에 e > 31 인 것들 마저 걸러낸다. (그 전에 하면 nan까지 inf로 처리됨)
     // -> fp12 Max: e=31. fexp = e + 127. fexp Max: 158. ==> 158 < fexp 는 INF이다
     if (e > 31) {
