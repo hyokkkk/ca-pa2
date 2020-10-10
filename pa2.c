@@ -287,8 +287,8 @@ fp12 float_fp12(float f)
         const unsigned int LorS = wholefrac & 0b00001011111111111111111111111000;
 
         // truncate 후 LRS 조건에 맞는 것만 +1
-        frac = wholefrac >> 27;
-        if (R && LorS) { ++frac; }
+        const int tmp = wholefrac >> 27;
+        frac = R && LorS ? tmp + 1 : tmp;
     } else {
 
         //                                  .............LRSSSSSSSSSSSSSSSSS
@@ -296,8 +296,8 @@ fp12 float_fp12(float f)
         const unsigned int LorS = ffrac & 0b00000000000001011111111111111111;
 
         // truncate 후 LRS 조건에 맞는 것만 +1
-        frac = ffrac >> 18;
-        if (R && LorS) { ++frac; }
+        const int tmp = ffrac >> 18;
+        frac = R && LorS ? tmp + 1 : tmp;
     }
 
 
