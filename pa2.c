@@ -235,8 +235,7 @@ fp12 float_fp12(float f)
     unsigned short fexp = (uni.binary >> 23) & 0xff;
 
     // 3) frac
-    unsigned int wholefrac = uni.binary << 9; // 32bit에 전체 frac을 담아 앞에서부터 채움.
-
+    const unsigned int ffrac = uni.binary & 0b00000000011111111111111111111111;
 //
 // 1. special forms : INF, NaN, 0
 //
@@ -253,7 +252,7 @@ fp12 float_fp12(float f)
         // fexp == 1111 1111
         // 2) Nan : frac != 0
         // 3) INF : frac == 0
-        if (wholefrac) {
+        if (ffrac) {
             return fsign ? 0xfff1 : 0x07f1;
         } else {
             return fsign ? 0xffe0 : 0x07e0;
@@ -271,10 +270,14 @@ fp12 float_fp12(float f)
 //2. 1) fp norm -> fp12 norm (e >= -30): 원래 짜던대로 진행
 //   2) fp norm -> fp12 denorm (1.00.....01 * 2^-36 ~ 1.11....11 * 2^-31) : special check is needed
     bool denormflag = fexp <= 127-31; // 나중에 exp encoding, e== -31에서 rounding될 때 사용.
+
+    unsigned int wholefrac;
     if (denormflag) {
         // denorm으로 만들기 위해 정수부에 있는 1을 frac부분에 넣는 과정.
-        wholefrac = ((wholefrac >> 1) | 0x80000000) >> (-31-(fexp-127));
+        wholefrac = ((ffrac << 8) | 0x80000000) >> (-31-(fexp-127));
         fexp = 127-30; // denorm으로 만들어야하니 e==-30으로 통일시킴
+    } else {
+        wholefrac = ffrac << 9;
     }
 
 //
