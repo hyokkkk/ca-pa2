@@ -237,19 +237,15 @@ fp12 float_fp12(float f)
 //
 // 1. special forms : INF, NaN, 0
 //
-
     // 1) +0, -0 : fexp = 0000 0000
-    // -> fp denorm은 무조건 0으로 변환된다.
-    // -> e <= -37도 무조건 0으로 변환된다. -36 <= e <= -31 은 fp normal -> fp12 denormal이라서 따로 다룸
-    // -> 이 범위에 fexp == 0도 다 포함됨.
+    // -> fp denorm, e <= -37은 무조건 0으로 변환. -36 <= e <= -31 은 fp normal -> fp12 denormal이라서 따로 다룸
     if (fexp <= 127-37) {
         return fsign ? 0xf800 : 0x0000;
     }
 
     if (fexp == 0xff) {
         // fexp == 1111 1111
-        // 2) Nan : frac != 0
-        // 3) INF : frac == 0
+        // Nan : frac != 0, INF : frac == 0
         if (ffrac) {
             return fsign ? 0xfff1 : 0x07f1;
         } else {
@@ -273,13 +269,9 @@ fp12 float_fp12(float f)
 
     if (denormflag) {
         // invariant: 91 <= fexp <= 96
-        // 3 <= 9 + 30 + fexp - 127 <= 8
-
-        // denorm으로 만들기 위해 정수부에 있는 1을 frac부분에 넣는 과정.
+        // denorm으로 만들기 위해 정수부에 있는 1을 frac에 넣어야 한다
         const unsigned int wholefrac = ((ffrac | 0x00800000) << (9 + 30 + fexp - 127));
-
         frac = wholefrac >> 27;
-
         fexp = 127-30; // denorm으로 만들어야하니 e==-30으로 통일시킴
 
 //
@@ -306,9 +298,9 @@ fp12 float_fp12(float f)
 //
 // 4. Renormalization : frac이 정상이라면 0b100000 보다 작음
 //
-    if ((unsigned short)frac >= 0x0020) {
+    if (frac == 0b100000) {
         frac = 0;
-        //denorm 켜진 상태에서 frac == 0b100000 된 거는 1.00000 * 2^-30 된거임
+        // denorm 켜진 상태에서 frac == 0b100000 된 거는 1.00000 * 2^-30 된거임
         if (denormflag) {
             denormflag = false; // exp encoding 위해 flag 끔.
         } else {
@@ -325,16 +317,8 @@ fp12 float_fp12(float f)
         return fsign ? 0xffe0 : 0x07e0;
     }
 
-//
-// 5. encoding
-//
     const fp12 sign = fsign ? 0xf800 : 0; // 음수면 11111 000000 00000;
-
-    // 1) exp
-    // -> denorm 인 경우는 0
-    // -> denorm 아닌 경우는 e + BIAS
     const fp12 exp = denormflag ? 0 : (fexp - 127 + BIAS) << 5;
-
     return sign | exp | frac;
 }
 
