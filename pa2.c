@@ -1,5 +1,7 @@
 #pragma GCC optimize("O3")
 #pragma GCC target("arch=ivybridge")
+#define likely(x)    __builtin_expect (!!(x), 1)
+#define unlikely(x)  __builtin_expect (!!(x), 0)
 //---------------------------------------------------------------
 //
 //  4190.308 Computer Architecture (Fall 2020)
@@ -270,11 +272,11 @@ fp12 float_fp12(float f)
         return fsign == 0 ? 0 : 0xf800;
 
     // 2) INF : fexp = 1111 1111, frac = 0
-    if (fexp == 0xff && wholefrac == 0)
+    if (unlikely(fexp == 0xff && wholefrac == 0))
         return fsign == 0 ? 0x07e0 : 0xffe0;
 
     // 3) Nan : fexp = 1111 1111, frac != 0
-    if (fexp == 0xff && (wholefrac != 0))
+    if (unlikely(fexp == 0xff && (wholefrac != 0)))
         return fsign == 0 ? 0x07f1 : 0xfff1;
 
     // 3) Rounding 전부터 크기가 너무 커서 INF가 명백한 수 거르기
@@ -314,7 +316,7 @@ fp12 float_fp12(float f)
     if ((unsigned short)frac >= 0x0020) {
         frac = 0;
         //denorm 켜진 상태에서 frac == 100000 된 거는 1.00000 * 2^-30 된거임
-        if (denormflag == true) denormflag = false; // exp encoding 위해 flag 끔.
+        if (unlikely(denormflag == true)) denormflag = false; // exp encoding 위해 flag 끔.
         else e++;
     }
 
@@ -323,7 +325,7 @@ fp12 float_fp12(float f)
 //
     // fp12 Max = 00000 111110 11111 = 1.11111 * 2^31
     // +INF = 00000 111111 00000 = 0x07e0; -INF = 11111 111111 00000 = 0xffe0;
-    if (e >= 32)    return fsign == 1 ? 0xffe0 : 0x07e0;
+    if (unlikely(e >= 32))    return fsign == 1 ? 0xffe0 : 0x07e0;
 
 //
 // 5. encoding
