@@ -13,17 +13,19 @@ typedef unsigned short int fp12;
 #define FP12_NEG_INF 0xffe0
 
 typedef enum {false, true} bool;
+typedef unsigned int u32;
+typedef unsigned short u16;
 
 fp12 int_fp12(int n)
 {
 
     if (n == 0) return 0;
 
-    unsigned short sign = n < 0 ? 0xf800 : 0;
-    unsigned int un = n < 0 ? (unsigned int)~n+1 : (unsigned int)n;
+    u16 sign = n < 0 ? 0xf800 : 0;
+    u32 un = n < 0 ? (u32)~n+1 : (u32)n;
 
     int cnt = 0;
-    while (un < (unsigned int)0x80000000){ un<<=1; cnt++; }
+    while (un < (u32)0x80000000){ un<<=1; cnt++; }
     int e = 31 - cnt;
 
     bool RS = un <<6 >= 0x80000040 ? true : false;
@@ -43,7 +45,7 @@ fp12 int_fp12(int n)
        else if (sign == 0) return FP12_INF;
     }
 
-    unsigned short int exp = e + BIAS;
+    u16 exp = e + BIAS;
     exp <<= 5;
 
     un <<= 32-5;
@@ -79,11 +81,11 @@ int fp12_int(fp12 x)
     else if (0 <= 5-e && 5-e <= 32) unsignedResult |= (mantissa >>= (5-e));
 
     if (sign == 0) {
-        if ((unsigned int)unsignedResult > 0x7fffffff) return 0x80000000;
+        if ((u32)unsignedResult > 0x7fffffff) return 0x80000000;
     }
 
     else {
-        if ((unsigned int)unsignedResult > (unsigned int)0x80000000) return 0x80000000;
+        if ((u32)unsignedResult > (u32)0x80000000) return 0x80000000;
     }
 
     int result = unsignedResult;
@@ -95,51 +97,42 @@ int fp12_int(fp12 x)
 
 fp12 float_fp12(float f)
 {
-    const union { float ieee754; unsigned int binary; } uni = { .ieee754 = f };
-    const unsigned int fsign = uni.binary & 0x80000000;
-    unsigned short fexp = (uni.binary >> 23) & 0xff;
-
+    const union { float ieee754; u32 binary; } uni = { .ieee754 = f };
+    const u32 input = uni.binary;
+    const u32 fsign = input & 0x80000000;
+    const u16 fexp = (input >> 23) & 0xff;
     if (fexp <= 127-37) { return fsign ? 0xf800 : 0x0000; }
 
-    const unsigned int ffrac = uni.binary & 0b00000000011111111111111111111111;
+    const u32 ffrac = input & 0b00000000011111111111111111111111;
 
     if (fexp > 127+31) {
-        if (fexp == 0xff) {
-            if (ffrac) {
-                return fsign ? FP12_NEG_NAN : FP12_NAN;
-            } else {
-                return fsign ? FP12_NEG_INF : FP12_INF;
-            }
+        if (fexp == 0xff && ffrac) {
+            return fsign ? FP12_NEG_NAN : FP12_NAN;
         }
         return fsign ? FP12_NEG_INF : FP12_INF;
     }
 
-    bool denormflag = fexp <= 127-31;
-
-    unsigned short frac;
-    if (denormflag) {
-        const unsigned int wholefrac = ((ffrac | 0x00800000) << (9 + 30 + fexp - 127));
-        fexp = 127-30;
-        const unsigned int R =    wholefrac & 0b00000100000000000000000000000000;
-        const unsigned int LorS = wholefrac & 0b00001011111111111111111111111000;
-        const int tmp = wholefrac >> 27;
-        frac = R && LorS ? tmp + 1 : tmp;
-    } else {
-        const unsigned int R =    ffrac & 0b00000000000000100000000000000000;
-        const unsigned int LorS = ffrac & 0b00000000000001011111111111111111;
-        const int tmp = ffrac >> 18;
-        frac = R && LorS ? tmp + 1 : tmp;
+    const fp12 sign = fsign ? 0xf800 : 0;
+    if (fexp <= 127-31) {
+        const u32 wholefrac = ((ffrac | 0x00800000) << (9 + 30 + fexp - 127));
+        const u32 R =    wholefrac & 0b00000100000000000000000000000000;
+        const u32 LorS = wholefrac & 0b00001011111111111111111111111000;
+        const u16 frac = wholefrac >> 27;
+        const fp12 result = sign | frac;
+        return R && LorS ? result + 1 : result;
     }
+
+    const u32 R =    ffrac & 0b00000000000000100000000000000000;
+    const u32 LorS = ffrac & 0b00000000000001011111111111111111;
+    const u16 tmp = ffrac >> 18;
+    const u16 frac = R && LorS ? tmp + 1 : tmp;
 
     if (frac == 0b100000) {
-        frac = 0;
-        if (!denormflag) { ++fexp; }
-        if (fexp == 127+32) { return fsign ? FP12_NEG_INF : FP12_INF; }
-        denormflag = false;
+        if (fexp == 127+31) { return fsign ? FP12_NEG_INF : FP12_INF; }
+        const fp12 exp = ((fexp + 1) - 127 + BIAS) << 5;
+        return sign | exp; // frac = 0
     }
 
-    const fp12 sign = fsign ? 0xf800 : 0;
-    if (denormflag) { return sign | frac; }
     const fp12 exp = (fexp - 127 + BIAS) << 5;
     return sign | frac | exp;
 }
