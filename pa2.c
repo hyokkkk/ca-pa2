@@ -234,7 +234,7 @@ fp12 float_fp12(float f)
     const union { float ieee754; unsigned int binary; } uni = { .ieee754 = f };
 
     // 1) float sign : +0, -0도 커버된다. 단순히 float 입력값을 0을 기준으로 비교하면 NaN 은 숫자가 아니라 비교가 안 됨. -2점이었음.
-    const bool fsign = !!(uni.binary & 0x80000000);
+    const unsigned int fsign = uni.binary & 0x80000000;
 
     // 2) exp : uni.twoshort.upper 값 읽어와서 필요한 부분만 추출
     // 실제 exponent인 e = fexp - 127
