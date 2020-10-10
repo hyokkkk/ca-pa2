@@ -274,7 +274,6 @@ fp12 float_fp12(float f)
     bool denormflag = fexp <= 127-31; // 나중에 exp encoding, e== -31에서 rounding될 때 사용.
 
     unsigned short frac;
-
     if (denormflag) {
         // invariant: 91 <= fexp <= 96
         // denorm으로 만들기 위해 정수부에 있는 1을 frac에 넣어야 한다
@@ -319,12 +318,10 @@ fp12 float_fp12(float f)
     }
 
     const fp12 sign = fsign ? 0xf800 : 0; // 음수면 11111 000000 00000;
-
     if (denormflag) {
         return sign | frac;
     } else {
-        const fp12 exp = (fexp - 127 + BIAS) << 5;
-        return sign | exp | frac;
+        return sign | frac | ((fexp - 127 + BIAS) << 5);
     }
 }
 
