@@ -19,6 +19,15 @@
 typedef unsigned short int fp12;
 #define BIAS 31
 
+// +NAN = 0x07f1
+#define FP12_NAN 0x07f1
+// -NAN = 0xfff1
+#define FP12_NEG_NAN 0xfff1
+// +INF = 00000 111111 00000 = 0x07e0
+#define FP12_INF 0x07e0
+// -INF = 11111 111111 00000 = 0xffe0;
+#define FP12_NEG_INF 0xffe0
+
 typedef enum {false, true} bool; //#include <stdbool.h> 해야하지만 여기선 사용불가하므로.
 /********* How to normalize *********/
 
@@ -103,10 +112,9 @@ fp12 int_fp12(int n)
 // -> 라운딩 후 fp12로 나타낼 수 있는 범위를 넘어가는 int는 부호에 따라 +INF, -INF 로 나타냄
 
     // fp12 Max = 00000 111110 11111 = 1.11111 * 2^31
-    // +INF = 00000 111111 00000 = 0x07e0; -INF = 11111 111111 00000 = 0xffe0;
     if (e == 32){
-       if (sign == 0xf800) return 0xffe0;
-       else if (sign == 0) return 0x07e0;
+       if (sign == 0xf800) return FP12_NEG_INF;
+       else if (sign == 0) return FP12_INF;
     }
 
 //
@@ -247,9 +255,9 @@ fp12 float_fp12(float f)
         // fexp == 1111 1111
         // Nan : frac != 0, INF : frac == 0
         if (ffrac) {
-            return fsign ? 0xfff1 : 0x07f1;
+            return fsign ? FP12_NEG_NAN : FP12_NAN;
         } else {
-            return fsign ? 0xffe0 : 0x07e0;
+            return fsign ? FP12_NEG_INF : FP12_INF;
         }
     }
 
@@ -257,7 +265,7 @@ fp12 float_fp12(float f)
     // -> NaN까지 다 한 후에 e > 31 인 것들 마저 걸러낸다. (그 전에 하면 nan까지 inf로 처리됨)
     // -> fp12 Max: e=31. fexp = e + 127. fexp Max: 158. ==> 158 < fexp 는 INF이다
     if (fexp > 127+31) {
-        return fsign ? 0xffe0 : 0x07e0;
+        return fsign ? FP12_NEG_INF : FP12_INF;
     }
 
 //
