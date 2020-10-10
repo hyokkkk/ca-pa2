@@ -18,7 +18,7 @@
 //
 //---------------------------------------------------------------
 
-#include "pa2.h"
+typedef unsigned short int fp12;
 #define BIAS 31
 
 typedef enum {false, true} bool; //#include <stdbool.h> 해야하지만 여기선 사용불가하므로.
