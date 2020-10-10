@@ -281,7 +281,7 @@ fp12 float_fp12(float f)
 //
 // 3. Rounding : LRS = 011, 111, 110 일 때만 +1하고 나머지는 truncate한다.
 //
-    //                         ....LRSSSSSSSSSSSSSSSSS.........
+    //                                      ....LRSSSSSSSSSSSSSSSSS.........
     const unsigned int R =    wholefrac & 0b00000100000000000000000000000000;
     const unsigned int LorS = wholefrac & 0b00001011111111111111111111111111;
 
