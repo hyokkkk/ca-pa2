@@ -306,11 +306,11 @@ fp12 float_fp12(float f)
 
 
 //
-// 4. Renormalization : frac이 정상이라면 100000 보다 작음
+// 4. Renormalization : frac이 정상이라면 0b100000 보다 작음
 //
     if ((unsigned short)frac >= 0x0020) {
         frac = 0;
-        //denorm 켜진 상태에서 frac == 100000 된 거는 1.00000 * 2^-30 된거임
+        //denorm 켜진 상태에서 frac == 0b100000 된 거는 1.00000 * 2^-30 된거임
         if (denormflag) {
             denormflag = false; // exp encoding 위해 flag 끔.
         } else {
