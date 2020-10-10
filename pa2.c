@@ -28,10 +28,10 @@ typedef enum {false, true} bool; //#include <stdbool.h> 해야하지만 여기�
 //      0) 0x80000000는 100000....000 이다. 따라서 어떤 수의 msb에 1이 나오면 >= 10000...000 이 될거임. shift연산하면서 몇 번 옮겼는지 세면 됨.
 //      1) 32bit 중에서 n번째에 1이 나왔다고 치면, 32-n이 E가 된다.
 //      2) 00000000 00000000 00000111 11100100 이라면 MSB쪽 가장 먼저 나오는 1은 22번째임.
-//          -> E = 32-22 = 10 
+//          -> E = 32-22 = 10
 //          -> 1.1111100100 * 2^10
-// 2. ROUNDING 
-//      1) frac bit = 5bit. 
+// 2. ROUNDING
+//      1) frac bit = 5bit.
 //      2) LRS = 011, 111, 110 인 경우에만 round up, 나머지는 truncate.
 //          -> LRS = 101이므로 걍 truncate한다.
 //          -> 1.11111 * 2^10
@@ -60,7 +60,7 @@ fp12 int_fp12(int n)
 // 0. sign 받아놓기
 //
     unsigned short sign = n < 0 ? 0xf800 : 0; // -: 1111 1000 0000 0000, 0 & +: 00000000 00000000
-    unsigned int un= n < 0 ? (unsigned int) ~n+1 : n; //음수면 양수로 바꿈. -2147483648같은 경계값은 -붙여도 자기 자신이라 ~n+1을 -n으로 퉁칠 수가 없음. 
+    unsigned int un= n < 0 ? (unsigned int) ~n+1 : n; //음수면 양수로 바꿈. -2147483648같은 경계값은 -붙여도 자기 자신이라 ~n+1을 -n으로 퉁칠 수가 없음.
 
 //
 // 1. Normalizing & E 구하기
@@ -74,7 +74,7 @@ fp12 int_fp12(int n)
 //
     // 1) RS == 11 check
     // RS == 11이려면, R==1, S이하에는 하나의 1만 있으면 됨.
-    // un이 Ixxxxx10 00000000 00000000 00000001 이상이면 s==1 이라는 의미다. 
+    // un이 Ixxxxx10 00000000 00000000 00000001 이상이면 s==1 이라는 의미다.
     // --> un << 6 한 게 10000000 00000000 00000000 01000000 이상이면 됨.
     bool RS = un <<6 >= 0x80000040 ? true : false;
 
@@ -82,13 +82,13 @@ fp12 int_fp12(int n)
     // un이 Ixxxx11x xxxxxx이면 s에 상관 없이 LR == 11임.
     // --> un << 5 한 게 11000000 00000000 0~ 0~ 이상이면 됨.
     bool LR = un << 5 >= 0xc0000000 ? true : false;
-    
+
     // 3) truncate 후 LRS 조건에 맞는 것만 +1
-    un >>= 32-6; // int 1bit + frac 5bit = 6bit만 남게 shift 
-    if (RS || LR) un += 1; 
+    un >>= 32-6; // int 1bit + frac 5bit = 6bit만 남게 shift
+    if (RS || LR) un += 1;
 
 //
-// 3. Renormalization 
+// 3. Renormalization
 // -> 정상이라면 1xxxxx처럼 6bit 숫자임. but 10.00000처럼 7bit로 넘어가는 경우도 있다.
 // -> 01000000 이상이면 >>1 하고 e += 1;
     if (un >= 0x40) {
@@ -110,7 +110,7 @@ fp12 int_fp12(int n)
 //
 // 4. Encoding
 // -> sign, exp, frac을 애초에 16bit로 extend해서 선언해놓고 result에 넣을 때 shift 없이 OR만 한다.
- 
+
     // 1) sign은 위에서 구해놓음
 
     // 2) exp : 6bit 니까 <<5.
@@ -120,7 +120,7 @@ fp12 int_fp12(int n)
     // 3) frac만 남기기 : << 32-5 한 후에 ORing 위해 다시 >>32-5
     un <<= 32-5;
     un >>= 32-5;
-    
+
     // 4) result에 넣기
     fp12 result = 0; // 결과 저장할 fp12형 16bit를 0으로 초기화
     result |= sign | exp | un; // 애초에 16bit로 extend하면 1byte로 선언해놓고 result에 넣을 때 shift 연산 안 해도 돼서 이렇게 함.
@@ -150,9 +150,9 @@ int fp12_int(fp12 x)
 //
 // 1. encoding
 //
-    // 1) sign  
+    // 1) sign
     // -> input x >= 11111000~~~ 이라면 sign은 1, 작으면 걍 0.
-    int sign = x >= 0xf800 ? 1 : 0; // 여기가 문제였어!!!! 갹~~~~ (3점) 
+    int sign = x >= 0xf800 ? 1 : 0; // 여기가 문제였어!!!! 갹~~~~ (3점)
 
     // 2) exp : 위에서 구해놓음. 실제 지수 e는 exp - BIAS. e는 ORing이 필요 없다.
     int e = exp - BIAS;
@@ -162,7 +162,7 @@ int fp12_int(fp12 x)
     frac >>= 11;
 
     // 4) mantissa : 1.frac
-    // -> 5bit frac | 100000 
+    // -> 5bit frac | 100000
     int mantissa = frac | 0x20;
 
     // 5) sign 붙이기 전 : mantissa를 e-5만큼 <<. 혹시 shift를 bit수 이상으로 하면 비트가 순환하나?
@@ -171,18 +171,18 @@ int fp12_int(fp12 x)
     int unsignedResult = 0;
     if (0 < e-5 && e-5 <= 32) unsignedResult |= (mantissa <<= (e-5));
     else if (0 <= 5-e && 5-e <= 32) unsignedResult |= (mantissa >>= (5-e));
-    
+
 //
 // 2. Range overflow check
 //    fp12가 의미하는 값이 int의 범위를 넘어서면 0x80000000 으로 표현. (4점)
-    
+
     // 1) Pos num
     // -> fp12 positive Max : 00000 111110 11111 = 1.11111 * 2^31 = 11111100 0~ 0~ 0~
     // -> int pos Max : 01111111 1~ 1~ 1~
     // -> int가 나타낼 수 있는 범위를 넘어섰기에 overflow가 나타난다.
     if (sign == 0) {
         if ((unsigned int)unsignedResult > 0x7fffffff) return 0x80000000;
-    } 
+    }
     // 2) Neg num
     // fp12 negative Max(abs) : 11111 111110 11111 = -1.11111 * 2^31 -> int로 나타낼 수 없다.
     // int neg Max(abs) : 10000000 0~ 0~ 0~ (절대값으로 생각해보자)
@@ -197,7 +197,7 @@ int fp12_int(fp12 x)
     if (sign == 1) result = ~unsignedResult +1;
 
     return result;
-    
+
 }
 
 
@@ -211,7 +211,7 @@ int fp12_int(fp12 x)
 // <-------------union---------------->
 //
 // +-+--------+-----------------------+
-// |S|exp 8bit|      frac 23bit       | <- float 
+// |S|exp 8bit|      frac 23bit       | <- float
 // +-+--------+-----------------------+
 // +----------------+----------------+
 // |  upper 16bit   |  lower 16bit   | <- struct
@@ -233,7 +233,7 @@ typedef union {
 
 // TODO : 이것이 핵심임!
 // float norm -> fp12 denorm 경곗값 : 1.frac(!=0) * 2^-36
-// float norm -> fp12 denorm -> renorm : 0.11111 * 2^-30 -> 1.00000 * 2^-30 
+// float norm -> fp12 denorm -> renorm : 0.11111 * 2^-30 -> 1.00000 * 2^-30
 
 fp12 float_fp12(float f)
 {
@@ -243,25 +243,25 @@ fp12 float_fp12(float f)
     // 0) input float 값을 공용체 전체공간에 저장
     Union uni;
     uni.input = f;
-    
+
     // 1) float sign : +0, -0도 커버된다. 단순히 float 입력값을 0을 기준으로 비교하면 NaN 은 숫자가 아니라 비교가 안 됨. -2점이었음.
     char fsign = uni.wholefrac < 0x80000000 ? 0 : 1;
 
     // 2) exp : uni.twoshort.upper 값 읽어와서 필요한 부분만 추출
     unsigned short fexp = uni.twoShort.upper << 1; // remove sign bit
-    fexp >>= 8; // remove frac bits 
+    fexp >>= 8; // remove frac bits
 
     // 3) frac
     unsigned int wholefrac = uni.wholefrac << 9; // 32bit에 전체 frac을 담아 앞에서부터 채움.
-    
+
 //
 // 1. special forms : INF, NaN, 0
 //
-    // 원래 지수 
+    // 원래 지수
     int e = fexp -127;
-    
+
     // 1) +0, -0 : fexp = 0000 0000
-    // -> fp denorm은 무조건 0으로 변환된다. 
+    // -> fp denorm은 무조건 0으로 변환된다.
     // -> e <= -37도 무조건 0으로 변환된다. -36 <= e <= -31 은 fp normal -> fp12 denormal이라서 따로 다룸
     // -> 이 범위에 fexp == 0도 다 포함됨.
     if (e <= -37)
@@ -270,11 +270,11 @@ fp12 float_fp12(float f)
     // 2) INF : fexp = 1111 1111, frac = 0
     if (fexp == 0xff && wholefrac == 0)
         return fsign == 0 ? 0x07e0 : 0xffe0;
-     
+
     // 3) Nan : fexp = 1111 1111, frac != 0
     if (fexp == 0xff && (wholefrac != 0))
         return fsign == 0 ? 0x07f1 : 0xfff1;
- 
+
     // 3) Rounding 전부터 크기가 너무 커서 INF가 명백한 수 거르기
     // -> NaN까지 다 한 후에 e > 31 인 것들 마저 걸러낸다. (그 전에 하면 nan까지 inf로 처리됨)
     // -> fp12 Max: e=31. fexp = e + 127. fexp Max: 158. ==> 158 < fexp 는 INF이다
@@ -282,7 +282,7 @@ fp12 float_fp12(float f)
 
 //
 //2. 1) fp norm -> fp12 norm (e >= -30): 원래 짜던대로 진행
-//   2) fp norm -> fp12 denorm (1.00.....01 * 2^-36 ~ 1.11....11 * 2^-31) : special check is needed 
+//   2) fp norm -> fp12 denorm (1.00.....01 * 2^-36 ~ 1.11....11 * 2^-31) : special check is needed
     bool denormflag = (-36 <= e && e <= -31) ? true : false; // 나중에 exp encoding, e== -31에서 rounding될 때 사용.
     if (denormflag) {
         wholefrac >>= 1; // denorm으로 만들기 위해 정수부에 있는 1을 frac부분에 넣는 과정.
@@ -304,20 +304,20 @@ fp12 float_fp12(float f)
 
     // 3) truncate 후 LRS 조건에 맞는 것만 +1
     unsigned short frac = wholefrac >> 27;
-    if (RS || LR) frac += 1; 
+    if (RS || LR) frac += 1;
 
 //
-// 4. Renormalization : frac이 정상이라면 100000 보다 작음 
+// 4. Renormalization : frac이 정상이라면 100000 보다 작음
 //
     if ((unsigned short)frac >= 0x0020) {
         frac = 0;
         //denorm 켜진 상태에서 frac == 100000 된 거는 1.00000 * 2^-30 된거임
-        if (denormflag == true) denormflag = false; // exp encoding 위해 flag 끔. 
+        if (denormflag == true) denormflag = false; // exp encoding 위해 flag 끔.
         else e++;
-    }    
+    }
 
 //
-// 4-1. special case after rounding 
+// 4-1. special case after rounding
 //
     // fp12 Max = 00000 111110 11111 = 1.11111 * 2^31
     // +INF = 00000 111111 00000 = 0x07e0; -INF = 11111 111111 00000 = 0xffe0;
@@ -335,7 +335,7 @@ fp12 float_fp12(float f)
     if (!denormflag) exp = (e + BIAS) << 5;
 
     fp12 result = 0;
-    result |= (sign | exp | frac);  
+    result |= (sign | exp | frac);
 
     return result;
 
@@ -376,12 +376,12 @@ float fp12_float(fp12 x)
 
     // 2) NaN : exp == 111111, frac != 00000 (1점)
     if (fpExp == 0x3f && fpFrac != 0) {
-        return fpSign == 0 ? -(0.0/0.0): 0.0/0.0; } // 0.0/0.0 : -NaN 
+        return fpSign == 0 ? -(0.0/0.0): 0.0/0.0; } // 0.0/0.0 : -NaN
 
     // 3) 0 : exp == 000000, frac == 00000
-    if (fpExp==0 && fpFrac ==0) 
+    if (fpExp==0 && fpFrac ==0)
         return fpSign == 0 ? 0.0 : -0.0;
-    
+
 //
 // 2. General case
 // -> float는 bitwise operation이 안 된다. bit에 바로 때려넣는 거 불가.
@@ -398,11 +398,11 @@ float fp12_float(fp12 x)
     // 4) 2^e 값 구하기
     int twoPowE = 1;
     twoPowE = e >= 0 ? twoPowE << e : twoPowE << -e; // e >= 0
- 
+
     float twoPowNegE = 1.0f/twoPowE;
 
     float unsigned_result = e >= 0 ? mantissa * twoPowE : mantissa * twoPowNegE;
-    
+
     // TODO : 연구 좀 더 하기 (3점)
     // e == 31일 때에는 mantissa에 << 31해버리면 정수부분까지 해서 32bit가 차버림.
     // float는 정수부 나타낼 필요 없으니..... 아 머리 안 돌아간다. 일단 패스.
