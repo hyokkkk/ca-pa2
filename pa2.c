@@ -310,16 +310,12 @@ fp12 float_fp12(float f)
         frac = 0;
         // denorm 켜진 상태에서 frac == 0b100000 된 거는 1.00000 * 2^-30 된거임
         if (!denormflag) { ++fexp; }
-        denormflag = false; // exp encoding 위해 flag 끔.
-    }
 
-//
-// 4-1. special case after rounding
-//
-    // fp12 Max = 00000 111110 11111 = 1.11111 * 2^31
-    // +INF = 00000 111111 00000 = 0x07e0; -INF = 11111 111111 00000 = 0xffe0;
-    if (fexp >= 127+32) {
-        return fsign ? 0xffe0 : 0x07e0;
+        // special case after rounding
+        // fp12 Max = 00000 111110 11111 = 1.11111 * 2^31
+        if (fexp == 127+32) { return fsign ? FP12_NEG_INF : FP12_INF; }
+
+        denormflag = false; // exp encoding 위해 flag 끔.
     }
 
     const fp12 sign = fsign ? 0xf800 : 0; // 음수면 11111 000000 00000;
