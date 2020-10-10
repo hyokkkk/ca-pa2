@@ -231,6 +231,7 @@ fp12 float_fp12(float f)
     const bool fsign = !!(uni.binary & 0x80000000);
 
     // 2) exp : uni.twoshort.upper 값 읽어와서 필요한 부분만 추출
+    // 실제 exponent인 e = fexp - 127
     unsigned short fexp = (uni.binary >> 23) & 0xff;
 
     // 3) frac
@@ -239,14 +240,12 @@ fp12 float_fp12(float f)
 //
 // 1. special forms : INF, NaN, 0
 //
-    // 원래 지수
-    short e = fexp - 127;
 
     // 1) +0, -0 : fexp = 0000 0000
     // -> fp denorm은 무조건 0으로 변환된다.
     // -> e <= -37도 무조건 0으로 변환된다. -36 <= e <= -31 은 fp normal -> fp12 denormal이라서 따로 다룸
     // -> 이 범위에 fexp == 0도 다 포함됨.
-    if (e <= -37) {
+    if (fexp <= 127-37) {
         return fsign ? 0xf800 : 0x0000;
     }
 
@@ -264,18 +263,18 @@ fp12 float_fp12(float f)
     // 4) Rounding 전부터 크기가 너무 커서 INF가 명백한 수 거르기
     // -> NaN까지 다 한 후에 e > 31 인 것들 마저 걸러낸다. (그 전에 하면 nan까지 inf로 처리됨)
     // -> fp12 Max: e=31. fexp = e + 127. fexp Max: 158. ==> 158 < fexp 는 INF이다
-    if (e > 31) {
+    if (fexp > 127+31) {
         return fsign ? 0xffe0 : 0x07e0;
     }
 
 //
 //2. 1) fp norm -> fp12 norm (e >= -30): 원래 짜던대로 진행
 //   2) fp norm -> fp12 denorm (1.00.....01 * 2^-36 ~ 1.11....11 * 2^-31) : special check is needed
-    bool denormflag = e <= -31; // 나중에 exp encoding, e== -31에서 rounding될 때 사용.
+    bool denormflag = fexp <= 127-31; // 나중에 exp encoding, e== -31에서 rounding될 때 사용.
     if (denormflag) {
         // denorm으로 만들기 위해 정수부에 있는 1을 frac부분에 넣는 과정.
-        wholefrac = ((wholefrac >> 1) | 0x80000000) >> (-31-e);
-        e = -30; // denorm으로 만들어야하니 e==-30으로 통일시킴
+        wholefrac = ((wholefrac >> 1) | 0x80000000) >> (-31-(fexp-127));
+        fexp = 127-30; // denorm으로 만들어야하니 e==-30으로 통일시킴
     }
 
 //
@@ -298,7 +297,7 @@ fp12 float_fp12(float f)
         if (unlikely(denormflag)) {
             denormflag = false; // exp encoding 위해 flag 끔.
         } else {
-            ++e;
+            ++fexp;
         }
     }
 
@@ -307,7 +306,7 @@ fp12 float_fp12(float f)
 //
     // fp12 Max = 00000 111110 11111 = 1.11111 * 2^31
     // +INF = 00000 111111 00000 = 0x07e0; -INF = 11111 111111 00000 = 0xffe0;
-    if (unlikely(e >= 32)) {
+    if (unlikely(fexp >= 127+32)) {
         return fsign ? 0xffe0 : 0x07e0;
     }
 
@@ -319,7 +318,7 @@ fp12 float_fp12(float f)
     // 1) exp
     // -> denorm 인 경우는 0
     // -> denorm 아닌 경우는 e + BIAS
-    const fp12 exp = denormflag ? 0 : (e + BIAS) << 5;
+    const fp12 exp = denormflag ? 0 : (fexp - 127 + BIAS) << 5;
 
     return sign | exp | frac;
 }
