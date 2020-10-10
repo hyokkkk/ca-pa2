@@ -272,9 +272,8 @@ fp12 float_fp12(float f)
 //   2) fp norm -> fp12 denorm (1.00.....01 * 2^-36 ~ 1.11....11 * 2^-31) : special check is needed
     bool denormflag = e <= -31; // 나중에 exp encoding, e== -31에서 rounding될 때 사용.
     if (denormflag) {
-        wholefrac >>= 1; // denorm으로 만들기 위해 정수부에 있는 1을 frac부분에 넣는 과정.
-        wholefrac |= 0x80000000;
-        wholefrac >>= -30-e-1;
+        // denorm으로 만들기 위해 정수부에 있는 1을 frac부분에 넣는 과정.
+        wholefrac = ((wholefrac >> 1) | 0x80000000) >> (-31-e);
         e = -30; // denorm으로 만들어야하니 e==-30으로 통일시킴
     }
 
@@ -282,10 +281,10 @@ fp12 float_fp12(float f)
 // 3. Rounding : LRS = 011, 111, 110 일 때만 +1하고 나머지는 truncate한다.
 //
     // 1) RS == 11 check
-    const bool RS = (wholefrac << 5) > 0x80000000 ? true : false;
+    const bool RS = (wholefrac << 5) > 0x80000000;
 
     // 2) LR == 11 check
-    const bool LR = (wholefrac << 4) >= 0xc0000000 ? true : false;
+    const bool LR = (wholefrac << 4) >= 0xc0000000;
 
     // 3) truncate 후 LRS 조건에 맞는 것만 +1
     unsigned short frac = wholefrac >> 27;
