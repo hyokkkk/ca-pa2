@@ -223,6 +223,7 @@ fp12 float_fp12(float f)
     //
     // +-+--------+-----------------------+
     // |S|exp 8bit|      frac 23bit       | <- float
+    // | |        |....LRSSSSSSSSSSSSSSSSS|
     // +-+--------+-----------------------+
     const union { float ieee754; unsigned int binary; } uni = { .ieee754 = f };
 
@@ -280,15 +281,13 @@ fp12 float_fp12(float f)
 //
 // 3. Rounding : LRS = 011, 111, 110 일 때만 +1하고 나머지는 truncate한다.
 //
-    // 1) RS == 11 check
-    const bool RS = (wholefrac << 5) > 0x80000000;
+    //                         ....LRSSSSSSSSSSSSSSSSS.........
+    const unsigned int R =    wholefrac & 0b00000100000000000000000000000000;
+    const unsigned int LorS = wholefrac & 0b00001011111111111111111111111111;
 
-    // 2) LR == 11 check
-    const bool LR = (wholefrac << 4) >= 0xc0000000;
-
-    // 3) truncate 후 LRS 조건에 맞는 것만 +1
+    // truncate 후 LRS 조건에 맞는 것만 +1
     unsigned short frac = wholefrac >> 27;
-    if (RS || LR) frac += 1;
+    if (R && LorS) { ++frac; }
 
 //
 // 4. Renormalization : frac이 정상이라면 100000 보다 작음
