@@ -1,7 +1,5 @@
 #pragma GCC optimize("O3")
 #pragma GCC target("arch=ivybridge")
-#define likely(x)    __builtin_expect (!!(x), 1)
-#define unlikely(x)  __builtin_expect (!!(x), 0)
 //---------------------------------------------------------------
 //
 //  4190.308 Computer Architecture (Fall 2020)
@@ -248,7 +246,7 @@ fp12 float_fp12(float f)
         return fsign ? 0xf800 : 0x0000;
     }
 
-    if (unlikely(fexp == 0xff)) {
+    if (fexp == 0xff) {
         // fexp == 1111 1111
         // 2) Nan : frac != 0
         // 3) INF : frac == 0
@@ -323,7 +321,7 @@ fp12 float_fp12(float f)
 //
     // fp12 Max = 00000 111110 11111 = 1.11111 * 2^31
     // +INF = 00000 111111 00000 = 0x07e0; -INF = 11111 111111 00000 = 0xffe0;
-    if (unlikely(fexp >= 127+32)) {
+    if (fexp >= 127+32) {
         return fsign ? 0xffe0 : 0x07e0;
     }
 
