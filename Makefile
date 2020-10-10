@@ -17,8 +17,8 @@
 TARGET	= pa2
 SRCS	= pa2.c pa2-test.c
 CC	= gcc
-CFLAGS	= -pg -g -O2 -Wall -Wextra -Wpedantic
-LDFLAGS = -pg
+CFLAGS	= --coverage -g -O2 -Wall -Wextra -Wpedantic
+LDFLAGS = --coverage
 OBJS	= $(SRCS:.c=.o)
 
 all: $(TARGET)
@@ -33,4 +33,4 @@ clean:
 .PHONY: bench
 bench: $(TARGET)
 	./pa2
-	gprof -l ./pa2
+	gcov pa2.c
