@@ -93,12 +93,12 @@ uint16_t test2[N] =	{0xf800, 0x04d6, 0x044c, 0xf81f, 0x07e0, 0xffff};
 uint32_t ans2[N] =	{0x00000000, 0x000000d8, 0x0000000b, 0x00000000, 0x80000000, 0x80000000};
 
 /* float -> fp12 */
-uint32_t test3[N] =	{0x4f7a0001, 0x4f7e0001, 0x2d800001, 0x307fffff, 0x7fffffff, 0xffffffff};
+uint32_t test3[] =	{0x00000001, 0x3fe00000, 0xe0000000, 0x80b5840c, 0x4f7a0001, 0x4f7e0001, 0x2d800001, 0x307fffff, 0x7f800000, 0xffffffff};
                         // 00000111 11011111 = 1.11111 * 2^31
                         // 00000111 11100000 = 10.11110 * 2^31 이라 무한대
                         // 00000000 00000001 = 1.00000.....1 * 2^-36 = 0.00001 * 2^-30
                         // 00000000 00100000 = 1.11111000....01 * 2^-31 = 1.00000 * 2^-30 
-uint16_t ans3[N] =	{0x0000, 0x03f8, 0xffe0, 0xf800, 0x07e0, 0xffe1};
+uint16_t ans3[sizeof test3/sizeof test3[0]] =	{0x0000, 0x03f8, 0xffe0, 0xf800, 0x07df, 0x07e0, 0x0001, 0x0020, 0x07e0, 0xffe1};
 
 /* fp12 -> float */
 uint16_t test4[N] =	{0x0000, 0xf801, 0x0555, 0x07e0, 0xffe0, 0x07e1};
@@ -135,7 +135,7 @@ int main(void)
 	}
 
 	printf("\n%sTest 3: Casting from float to fp12%s\n", CYAN, RESET);
-	for (int i = 0; i < N; i++) {
+	for (int i = 0; i < sizeof test3/sizeof test3[0]; i++) {
 		float *p = (float *)&test3[i];
 		float f = *p;
 		uint16_t result = (uint16_t)float_fp12(f);
