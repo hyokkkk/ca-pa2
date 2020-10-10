@@ -321,7 +321,8 @@ fp12 float_fp12(float f)
     if (denormflag) {
         return sign | frac;
     } else {
-        return sign | frac | ((fexp - 127 + BIAS) << 5);
+        const fp12 exp = (fexp - 127 + BIAS) << 5;
+        return sign | frac | exp;
     }
 }
 
