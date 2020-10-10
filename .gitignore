@@ -2,3 +2,10 @@
 *.swp
 pa2
 *.out
+
+# Result of gcov
+pa2-test.gcda
+pa2-test.gcno
+pa2.c.gcov
+pa2.gcda
+pa2.gcno
