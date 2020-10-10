@@ -170,10 +170,11 @@ int main(void)
 
 	printf("\n");
 
-	printf("\n%sBenchmark: Running float_fp12 for 2^28 times%s\n", CYAN, RESET);
+	int count = 1<<26; // 1<<28;
+	printf("\n%sBenchmark: Running float_fp12 for %d times%s\n", CYAN, count, RESET);
 	struct timespec begin, end;
 	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &begin);
-	for (int i = 0; i < (1<<28); ++i) {
+	for (int i = 0; i < count; ++i) {
 		// Worst case input
 		float_fp12(0.000000000916770714898262895076186396181583404541015625);
 	}
