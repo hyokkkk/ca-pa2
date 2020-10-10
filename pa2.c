@@ -240,6 +240,8 @@ fp12 float_fp12(float f)
     // 실제 exponent인 e = fexp - 127
     unsigned short fexp = (uni.binary >> 23) & 0xff;
 
+    // 3) frac
+    const unsigned int ffrac = uni.binary & 0b00000000011111111111111111111111;
 //
 // 1. special forms : INF, NaN, 0
 //
@@ -248,8 +250,6 @@ fp12 float_fp12(float f)
     if (fexp <= 127-37) {
         return fsign ? 0xf800 : 0x0000;
     }
-
-    const unsigned int ffrac = uni.binary & 0b00000000011111111111111111111111;
 
     // 4) Rounding 전부터 크기가 너무 커서 INF가 명백한 수 거르기
     // -> NaN까지 다 한 후에 e > 31 인 것들 마저 걸러낸다. (그 전에 하면 nan까지 inf로 처리됨)
@@ -277,6 +277,7 @@ fp12 float_fp12(float f)
         // invariant: 91 <= fexp <= 96
         // denorm으로 만들기 위해 정수부에 있는 1을 frac에 넣어야 한다
         const unsigned int wholefrac = ((ffrac | 0x00800000) << (9 + 30 + fexp - 127));
+        frac = wholefrac >> 27;
         fexp = 127-30; // denorm으로 만들어야하니 e==-30으로 통일시킴
 
 //
@@ -287,17 +288,16 @@ fp12 float_fp12(float f)
         const unsigned int LorS = wholefrac & 0b00001011111111111111111111111000;
 
         // truncate 후 LRS 조건에 맞는 것만 +1
-        const int tmp = wholefrac >> 27;
-        frac = R && LorS ? tmp + 1 : tmp;
+        if (R && LorS) { ++frac; }
     } else {
+        frac = ffrac >> 18;
 
         //                                  .............LRSSSSSSSSSSSSSSSSS
         const unsigned int R =    ffrac & 0b00000000000000100000000000000000;
         const unsigned int LorS = ffrac & 0b00000000000001011111111111111111;
 
         // truncate 후 LRS 조건에 맞는 것만 +1
-        const int tmp = ffrac >> 18;
-        frac = R && LorS ? tmp + 1 : tmp;
+        if (R && LorS) { ++frac; }
     }
 
 
@@ -317,10 +317,12 @@ fp12 float_fp12(float f)
     }
 
     const fp12 sign = fsign ? 0xf800 : 0; // 음수면 11111 000000 00000;
-    if (denormflag) { return sign | frac; }
-
-    const fp12 exp = (fexp - 127 + BIAS) << 5;
-    return sign | frac | exp;
+    if (denormflag) {
+        return sign | frac;
+    } else {
+        const fp12 exp = (fexp - 127 + BIAS) << 5;
+        return sign | frac | exp;
+    }
 }
 
 
