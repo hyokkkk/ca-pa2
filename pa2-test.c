@@ -137,7 +137,7 @@ int main(void)
 	}
 
 	printf("\n%sTest 3: Casting from float to fp12%s\n", CYAN, RESET);
-	for (int i = 0; i < sizeof test3/sizeof test3[0]; i++) {
+	for (unsigned int i = 0; i < sizeof test3/sizeof test3[0]; i++) {
 		float *p = (float *)&test3[i];
 		float f = *p;
 		uint16_t result = (uint16_t)float_fp12(f);
