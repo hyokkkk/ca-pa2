@@ -1,3 +1,5 @@
+#pragma GCC optimize("O3")
+#pragma GCC target("arch=ivybridge")
 //---------------------------------------------------------------
 //
 //  4190.308 Computer Architecture (Fall 2020)
