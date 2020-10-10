@@ -17,7 +17,7 @@
 TARGET	= pa2
 SRCS	= pa2.c pa2-test.c
 CC	= gcc
-CFLAGS	= -g -O2 -Wall
+CFLAGS	= -g -O2 -Wall -Wextra -Wpedantic
 OBJS	= $(SRCS:.c=.o)
 
 all: $(TARGET)
