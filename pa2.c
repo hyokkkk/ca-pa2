@@ -72,7 +72,6 @@ fp12 int_fp12(int n)
 //
     unsigned short sign = n < 0 ? 0xf800 : 0; // -: 1111 1000 0000 0000, 0 & +: 00000000 00000000
     unsigned int un = n < 0 ? (unsigned int)~n+1 : (unsigned int)n; //음수면 양수로 바꿈. -2147483648같은 경계값은 -붙여도 자기 자신이라 ~n+1을 -n으로 퉁칠 수가 없음.
-
 //
 // 1. Normalizing & E 구하기
 //
@@ -394,5 +393,4 @@ float fp12_float(fp12 x)
 
     float result = fpSign == 0 ? unsigned_result : -unsigned_result;
     return result;
-
 }
